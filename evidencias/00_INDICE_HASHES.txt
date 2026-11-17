@@ -1,0 +1,28 @@
+ÍNDICE DE EVIDENCIAS — Taller 2 Mecanismos de Seguridad
+Universidad Distrital FJDC | 2026-11-16 21:43:32.431629
+================================================================================
+
+Archivo                                                 SHA-256
+------------------------------------------------------------------------------------------------------------------------
+caso10_fig1_tls_analisis.png                            88acdf2e4469c8e126a4583b5320ff0da48c591bf22f1b3aa18e253baed46842
+caso1_fig1_syn_temporal_topsources.png                  be49b0bcc6b90b43eba92fc0afa000e34993881b2e834283c7a23f22f6c98124
+caso1_fig2_netstat_estados.png                          03ed80a02e7d04e9acbb5f078681e4993f980220adb05845e20af9f1a5169b91
+caso1_synflood_lab.pcap                                 a28678760a655d13945d1588ac033784193b2fca43c886bf448af85eb6d31950
+caso2_dnstunnel_lab.pcap                                df946077e9557e9255c5b36b5f48d56dc203e542d488b1e1a107e529fbdb97f6
+caso2_fig1_dns_analisis.png                             ba24c6d66d4af2f306f62838142fe859f463683219544b6edcbb26bcfd7fe1fc
+caso2_fig2_tabla_dominios.png                           47976ef7dcf49dc5ff35658160f81706a54f440aec2427c6de9df2c7d3f2179b
+caso3_fig1_riesgo_inventario.png                        fe069ad64c7a9f5b18190b35fadb68538bc3797ee6a120fe5e1c1256b5e4c875
+caso3_fig2_auth_log.png                                 17f1c3f7e4f33f1c825f66d2b0fa9412ccef5dedebce0d94cb44c4acd0504dae
+caso4_ml_resultados.png                                 e3e4849a5d68eebfdb1b5cc9e328308aa2688428463a89cdc84f001fcc337cc4
+caso5_fig1_rst_analisis.png                             d0f04c314837cf1ed8d1835446ce42aa783db8ba0102bdf14786953c9cd4c5ed
+caso5_tcpreset_lab.pcap                                 7e31f67e737c3975484219f31067952f278369c5a9ea1123a5439a938ecdecbb
+caso6_fig1_reflexion_amplificacion.png                  14e5ce4f3b0d4993d36138d705aa01e2e666a07988299698c06c7cf4d4b05ecf
+caso6_fig2_bind_config.png                              7f137c72948f8e8d703940f2dc70997050f646244775b3d09846d34301f9adde
+caso7_fig1_icmp_analisis.png                            a1d994f43b177e57e4639554077e9204ec120425c0666fc3a2bfbd58d8d6959d
+caso7_icmp_lab.pcap                                     318601c9070ecd4928e5424e2d721e42737c4013a95c2f0fe30621843244f93b
+caso8_fig1_scan_puertos.png                             e2e1b9c1a8e11e27fff52edc94d21fbe9c7bdca5e4ade284f8abe96cb268b776
+caso8_portscan_lab.pcap                                 f0f0436c39121ac1b459674f70e2faaf5d7273366627d56911429acba7bd28b0
+caso9_fig1_correlacion_alertas.png                      292fc05152cba03e6b35cfd4a8422bce70db721ee4836edcf68a710f9c2904d1
+caso9_fig2_pipeline.png                                 0ece8e2286dcdd8d194290cca2b71654d070c692b0bb3cdafd4a1066df954517
+sistema_netstat.txt                                     d534d1689ed80d315c102e797ef7d49d0a6b16022ea7ec2bf30762094594a586
+sistema_netstat_captura.png                             9a179bdd1e6f6694202a9996712e5512fd52153debea0f19767f7e436aaea477

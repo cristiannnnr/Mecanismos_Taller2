@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rastreador de Ubicación — Lab Seguridad UDFJDC</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1e293b;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header p  { font-size: 0.75rem; color: #94a3b8; }
+
+    .badge {
+      background: #166534;
+      color: #86efac;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid #16a34a;
+    }
+
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 320px;
+      background: #1e293b;
+      border-right: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .sidebar section {
+      padding: 1rem;
+      border-bottom: 1px solid #334155;
+    }
+
+    .sidebar h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      outline: none;
+    }
+
+    input {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      margin-bottom: 0.5rem;
+    }
+
+    input:focus { border-color: #3b82f6; }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s;
+      margin-bottom: 0.5rem;
+    }
+
+    button:hover  { background: #1d4ed8; }
+    button:active { background: #1e40af; }
+
+    button.danger  { background: #dc2626; }
+    button.danger:hover { background: #b91c1c; }
+    button.secondary { background: #475569; }
+    button.secondary:hover { background: #334155; }
+
+    .status-line {
+      font-size: 0.8rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      margin-top: 0.4rem;
+    }
+
+    .status-ok   { background: #14532d; color: #86efac; }
+    .status-err  { background: #7f1d1d; color: #fca5a5; }
+    .status-info { background: #1e3a5f; color: #93c5fd; }
+
+    #history-list {
+      list-style: none;
+      font-size: 0.78rem;
+    }
+
+    #history-list li {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #334155;
+      color: #cbd5e1;
+    }
+
+    #history-list li span.coords { color: #38bdf8; font-family: monospace; }
+    #history-list li span.time   { color: #64748b; display: block; font-size: 0.72rem; }
+
+    #map {
+      flex: 1;
+      z-index: 0;
+    }
+
+    .info-box {
+      position: absolute;
+      bottom: 2rem;
+      right: 1rem;
+      z-index: 999;
+      background: #1e293bdd;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      max-width: 240px;
+      backdrop-filter: blur(4px);
+    }
+
+    .info-box strong { color: #38bdf8; }
+    .info-box p { color: #94a3b8; margin-top: 0.25rem; }
+
+    .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    .dot.green { background: #22c55e; }
+    .dot.red   { background: #ef4444; }
+    .dot.grey  { background: #64748b; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Rastreador de Ubicación por Consentimiento</h1>
+    <p>Taller 2 — Mecanismos de Seguridad · Universidad Distrital FJDC</p>
+  </div>
+  <span class="badge">USO ACADÉMICO</span>
+</header>
+
+<div class="layout">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+
+    <!-- Auth -->
+    <section id="sec-auth">
+      <h2>1. Autenticación</h2>
+      <input id="inp-phone" type="tel" placeholder="+57 300 000 0000" />
+      <label style="font-size:0.75rem;color:#94a3b8;display:flex;align-items:center;gap:6px;margin-bottom:0.5rem">
+        <input type="checkbox" id="chk-consent" style="width:auto;margin:0" />
+        Acepto que mi ubicación sea rastreada por el sistema
+      </label>
+      <button onclick="register()">Registrar y enviar OTP</button>
+
+      <input id="inp-otp" type="text" placeholder="Código OTP (6 dígitos)" />
+      <button onclick="verifyOtp()">Verificar OTP</button>
+
+      <div id="auth-status" class="status-line status-info" style="display:none"></div>
+    </section>
+
+    <!-- Track phone -->
+    <section id="sec-track">
+      <h2>2. Rastrear número</h2>
+      <input id="inp-track-phone" type="tel" placeholder="Número a rastrear" />
+      <button onclick="startTracking()">Ver ubicación actual</button>
+      <button class="secondary" onclick="loadHistory()">Cargar historial</button>
+      <div id="track-status" class="status-line" style="display:none"></div>
+    </section>
+
+    <!-- Toggle / Revoke -->
+    <section>
+      <h2>3. Privacidad</h2>
+      <button class="secondary" onclick="toggleTracking(false)">Pausar mi rastreo</button>
+      <button class="secondary" onclick="toggleTracking(true)">Reanudar mi rastreo</button>
+      <button class="danger" onclick="revokeConsent()">Revocar consentimiento y borrar datos</button>
+    </section>
+
+    <!-- History -->
+    <section>
+      <h2>Historial</h2>
+      <ul id="history-list"><li style="color:#64748b">Sin registros cargados</li></ul>
+    </section>
+
+  </aside>
+
+  <!-- ── MAP ── -->
+  <div style="position:relative;flex:1">
+    <div id="map"></div>
+    <div class="info-box" id="info-box" style="display:none">
+      <strong id="info-phone"></strong>
+      <p id="info-coords"></p>
+      <p id="info-time"></p>
+      <p><span class="dot" id="ws-dot"></span><span id="ws-status">Sin conexión en vivo</span></p>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const API = "http://localhost:8000";
+  let token = null;
+  let myPhone = null;
+  let map = null;
+  let marker = null;
+  let historyPolyline = null;
+  let ws = null;
+
+  // ── Mapa ──────────────────────────────────────────────────────────────────
+  map = L.map("map").setView([4.711, -74.0721], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+    maxZoom: 19,
+  }).addTo(map);
+
+  // ── Utilidades ────────────────────────────────────────────────────────────
+  function setStatus(el, msg, type) {
+    el.textContent = msg;
+    el.className = "status-line " + type;
+    el.style.display = "block";
+  }
+
+  function formatTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("es-CO", { timeZone: "America/Bogota" });
+  }
+
+  function placeMarker(lat, lng, label) {
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lng])
+      .addTo(map)
+      .bindPopup(label)
+      .openPopup();
+    map.setView([lat, lng], 15);
+  }
+
+  async function reverseGeocode(lat, lng) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        { headers: { "Accept-Language": "es" } }
+      );
+      const data = await res.json();
+      return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    } catch {
+      return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  async function register() {
+    const phone = document.getElementById("inp-phone").value.trim();
+    const consent = document.getElementById("chk-consent").checked;
+    const statusEl = document.getElementById("auth-status");
+
+    if (!consent) {
+      setStatus(statusEl, "Debes aceptar el consentimiento para continuar.", "status-err");
+      return;
+    }
+
+    const res = await fetch(`${API}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, consent_accepted: consent }),
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      setStatus(statusEl, `OTP enviado (demo: ${data.otp_demo})`, "status-ok");
+    } else {
+      setStatus(statusEl, data.detail || "Error al registrar", "status-err");
+    }
+  }
+
+  async function verifyOtp() {
+    const phone = document.getElementById("inp-phone").value.trim();
+    const otp = document.getElementById("inp-otp").value.trim();
+    const statusEl = document.getElementById("auth-status");
+
+    const res = await fetch(`${API}/auth/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, otp }),
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      token = data.access_token;
+      myPhone = data.phone;
+      setStatus(statusEl, `Autenticado: ${myPhone}`, "status-ok");
+    } else {
+      setStatus(statusEl, data.detail || "OTP inválido", "status-err");
+    }
+  }
+
+  async function toggleTracking(enabled) {
+    if (!token) { alert("Autentícate primero"); return; }
+    await fetch(`${API}/auth/toggle-tracking?enabled=${enabled}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    alert(enabled ? "Rastreo reactivado" : "Rastreo pausado");
+  }
+
+  async function revokeConsent() {
+    if (!token) { alert("Autentícate primero"); return; }
+    if (!confirm("¿Seguro? Esto eliminará todos tus datos de ubicación.")) return;
+    await fetch(`${API}/auth/revoke`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    token = null;
+    myPhone = null;
+    alert("Consentimiento revocado y datos eliminados.");
+  }
+
+  // ── Rastreo ───────────────────────────────────────────────────────────────
+  async function startTracking() {
+    if (!token) { alert("Autentícate primero"); return; }
+    const phone = document.getElementById("inp-track-phone").value.trim();
+    const statusEl = document.getElementById("track-status");
+
+    const res = await fetch(`${API}/location/current/${encodeURIComponent(phone)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      placeMarker(data.latitude, data.longitude, `📍 ${phone}<br>${formatTime(data.recorded_at)}`);
+
+      document.getElementById("info-phone").textContent = phone;
+      document.getElementById("info-coords").textContent =
+        `${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`;
+      document.getElementById("info-time").textContent = formatTime(data.recorded_at);
+      document.getElementById("info-box").style.display = "block";
+
+      setStatus(statusEl, "Ubicación cargada", "status-ok");
+      reverseGeocode(data.latitude, data.longitude).then(addr => {
+          document.getElementById("info-phone").textContent = phone + " — " + addr.substring(0, 60);
+      });
+      connectWebSocket(phone);
+    } else {
+      const err = await res.json();
+      setStatus(statusEl, err.detail || "No se encontró ubicación", "status-err");
+    }
+  }
+
+  function connectWebSocket(phone) {
+    if (ws) ws.close();
+    ws = new WebSocket(`ws://localhost:8000/ws/live/${encodeURIComponent(phone)}`);
+    const dot = document.getElementById("ws-dot");
+    const lbl = document.getElementById("ws-status");
+
+    ws.onopen = () => {
+      dot.className = "dot green";
+      lbl.textContent = "En vivo";
+    };
+
+    ws.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      placeMarker(d.latitude, d.longitude, `📍 ${phone} (en vivo)<br>${formatTime(d.recorded_at)}`);
+      document.getElementById("info-coords").textContent =
+        `${d.latitude.toFixed(6)}, ${d.longitude.toFixed(6)}`;
+      document.getElementById("info-time").textContent = formatTime(d.recorded_at);
+    };
+
+    ws.onclose = () => {
+      dot.className = "dot red";
+      lbl.textContent = "Desconectado";
+    };
+
+    // Ping cada 30 s para mantener la conexión
+    setInterval(() => { if (ws.readyState === WebSocket.OPEN) ws.send("ping"); }, 30000);
+  }
+
+  async function loadHistory() {
+    if (!token) { alert("Autentícate primero"); return; }
+    const phone = document.getElementById("inp-track-phone").value.trim();
+
+    const res = await fetch(`${API}/location/history/${encodeURIComponent(phone)}?limit=20`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const list = document.getElementById("history-list");
+    list.innerHTML = "";
+
+    const coords = [];
+    data.records.forEach((r) => {
+      coords.push([r.latitude, r.longitude]);
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="coords">${r.latitude.toFixed(5)}, ${r.longitude.toFixed(5)}</span>
+        <span class="time">${formatTime(r.recorded_at)} · ${r.source}</span>
+      `;
+      li.onclick = () => map.setView([r.latitude, r.longitude], 16);
+      list.appendChild(li);
+    });
+
+    if (historyPolyline) map.removeLayer(historyPolyline);
+    if (coords.length > 1) {
+      historyPolyline = L.polyline(coords, { color: "#3b82f6", weight: 2, opacity: 0.6 }).addTo(map);
+      map.fitBounds(historyPolyline.getBounds());
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Entornos y cachés de Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secretos y datos locales
+.env
+*.db
+
+# Configuración local de herramientas
+.claude/
+
+# Versión anterior del informe (reemplazada por la v2)
+PDF_Informe_Taller2_Seguridad.pdf
+Informe_Taller2_Seguridad.md
+generar_pdf.py

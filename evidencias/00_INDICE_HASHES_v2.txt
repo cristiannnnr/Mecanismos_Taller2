@@ -1,0 +1,45 @@
+INDICE DE EVIDENCIAS (v2) - Taller 2 Mecanismos de Seguridad - UDFJDC
+Generado: 2026-11-16 (UTC-5)
+======================================================================================================================
+Archivo                                            Bytes  SHA-256
+----------------------------------------------------------------------------------------------------------------------
+cap_caso1_analisis_pcap.png                       450988  7ee21fdcdfc8f98cacc0442042c3b59a0847b5943300bfef9e9d2ab61d39a29c
+cap_caso2_analisis_pcap.png                       413370  e4d2e3a34bd208ae9b5d5aa821a18697d8fe5e9014a03a8de873e9f8478e8408
+cap_caso3_netstat_equipo_real.png                 253719  87615f970132e4512979680954dc588695476abfc59ccc83d86f00a81468454e
+cap_caso4_comparacion_linea_base.png              140209  f897c2ab41a89bce829897f2cf0ec63f82770382a2a539a7fe769b2bfdfd235f
+cap_caso4_ejecucion_iforest.png                   227650  2d7b64614a28a3344e0dead37d3f67a1d0cf4293ccf9bd1d0480bfb8586baeec
+cap_caso5_analisis_pcap.png                       441687  fd173c307c33fd5d3b50541749a57e5bd70c6a9f3d7ca97af7f616613595efca
+cap_caso7_analisis_pcap.png                       416025  79447f7fde8bcc05c1f08a616936d8c41d30845467959a8fa6ae3c2d3304c986
+cap_caso8_analisis_pcap.png                       436048  d2d106463eb98652f3c70eb3538d44d58780bddc02c322dbf33361927d0f118e
+cap_parte2_base_datos.png                         134411  24006b07d29036b1ffc306a429ab6ecbd43d6b300f73968a119bbaf87ac60860
+cap_parte2_frontend_panel.png                     165640  9475ed7c68af600d93a01b72639c8d2158776f8147b0098f357588e9a0265c3d
+caso10_fig1_tls_analisis.png                      140982  88acdf2e4469c8e126a4583b5320ff0da48c591bf22f1b3aa18e253baed46842
+caso1_fig1_syn_temporal_topsources.png            140222  be49b0bcc6b90b43eba92fc0afa000e34993881b2e834283c7a23f22f6c98124
+caso1_fig2_netstat_estados.png                     69748  03ed80a02e7d04e9acbb5f078681e4993f980220adb05845e20af9f1a5169b91
+caso1_fig3_pcap_syn_por_segundo.png                87765  f822357b383b074f6c54218415c1256a0e0f904b221dffa2049e243998c7fc94
+caso1_synflood_lab.pcap                           272254  a28678760a655d13945d1588ac033784193b2fca43c886bf448af85eb6d31950
+caso2_dnstunnel_lab.pcap                          115640  df946077e9557e9255c5b36b5f48d56dc203e542d488b1e1a107e529fbdb97f6
+caso2_fig1_dns_analisis.png                       124317  ba24c6d66d4af2f306f62838142fe859f463683219544b6edcbb26bcfd7fe1fc
+caso2_fig2_tabla_dominios.png                      81600  47976ef7dcf49dc5ff35658160f81706a54f440aec2427c6de9df2c7d3f2179b
+caso2_fig3_pcap_dns_tasa_entropia.png              83356  380f2e214516b4e2abd4129a9757b5a8dca81da227cd1e3f2dfd36f69ee8353e
+caso3_fig1_riesgo_inventario.png                  156404  fe069ad64c7a9f5b18190b35fadb68538bc3797ee6a120fe5e1c1256b5e4c875
+caso3_fig2_auth_log.png                            98688  17f1c3f7e4f33f1c825f66d2b0fa9412ccef5dedebce0d94cb44c4acd0504dae
+caso4_fig1_resultados_iforest.png                 182113  ac89d8a6e261246158f955ea7d43411a1c80e94bd8c28441cca771d050267dc6
+caso4_fig2_comparacion_linea_base.png              94742  1bc47cfe49120e958964a65d14f97f6756155524cfa673d8a073027ef43c006e
+caso4_ml_resultados.png                           175161  e3e4849a5d68eebfdb1b5cc9e328308aa2688428463a89cdc84f001fcc337cc4
+caso5_fig1_rst_analisis.png                       144382  d0f04c314837cf1ed8d1835446ce42aa783db8ba0102bdf14786953c9cd4c5ed
+caso5_fig2_pcap_rst_inactividad.png               101328  4bc2a82162040714de36e91a44f16ef6f51c3eb76f8d58af5474e403835b72a7
+caso5_tcpreset_lab.pcap                            65544  7e31f67e737c3975484219f31067952f278369c5a9ea1123a5439a938ecdecbb
+caso6_fig1_reflexion_amplificacion.png            183934  14e5ce4f3b0d4993d36138d705aa01e2e666a07988299698c06c7cf4d4b05ecf
+caso6_fig2_bind_config.png                         57979  7f137c72948f8e8d703940f2dc70997050f646244775b3d09846d34301f9adde
+caso7_fig1_icmp_analisis.png                      112705  a1d994f43b177e57e4639554077e9204ec120425c0666fc3a2bfbd58d8d6959d
+caso7_fig2_pcap_icmp_tasa_patron.png              107071  e011b40b078be63c865dde5367fb0ac8c9be4d1b96bfa9f23ad844760fa7f126
+caso7_icmp_lab.pcap                              5163774  318601c9070ecd4928e5424e2d721e42737c4013a95c2f0fe30621843244f93b
+caso8_fig1_scan_puertos.png                       141872  e2e1b9c1a8e11e27fff52edc94d21fbe9c7bdca5e4ade284f8abe96cb268b776
+caso8_fig2_pcap_barrido_puertos.png                93364  f444895376bf9c3ebb2a63f857f4622f18495db31e2e50c74df2773ad6d32151
+caso8_portscan_lab.pcap                          9174924  f0f0436c39121ac1b459674f70e2faaf5d7273366627d56911429acba7bd28b0
+caso9_fig1_correlacion_alertas.png                297379  292fc05152cba03e6b35cfd4a8422bce70db721ee4836edcf68a710f9c2904d1
+caso9_fig2_pipeline.png                            60455  0ece8e2286dcdd8d194290cca2b71654d070c692b0bb3cdafd4a1066df954517
+parte2_sistema_funcionando.png                    167659  8b587cfc0e2abcd9435772bd158e164ac28e991220c5f6fe3f9556d438a03d18
+sistema_netstat.txt                                12812  d534d1689ed80d315c102e797ef7d49d0a6b16022ea7ec2bf30762094594a586
+sistema_netstat_captura.png                       134685  9a179bdd1e6f6694202a9996712e5512fd52153debea0f19767f7e436aaea477
