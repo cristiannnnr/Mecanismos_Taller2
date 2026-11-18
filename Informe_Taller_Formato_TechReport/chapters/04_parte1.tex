@@ -1,0 +1,1093 @@
+\chapter[Parte I --- Casos cr\'iticos]{Parte I --- An\'alisis de casos cr\'iticos}
+
+\label{ch:parte1}
+
+Cada caso se documenta con su ficha de registro, el procedimiento y la evidencia analizada, las reglas de detecci\'on propuestas, las medidas de mitigaci\'on y las preguntas de an\'alisis. Las etiquetas indican el tipo de evidencia de cada caso.
+
+
+\section{Caso 1 --- TCP SYN Flood: indisponibilidad y agotamiento de conexiones}
+
+\tagbox{tagpcapc}{PCAP SINTÉTICA} \tagbox{tagrealc}{ANÁLISIS REAL}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 1 --- TCP SYN Flood: indisponibilidad y agotamiento de\ldots{} (tabla 1)]{Caso 1 --- TCP SYN Flood: indisponibilidad y agotamiento de conexiones}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-01-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Tiempo relativo de la PCAP: t = 0 a 9,94 s. Archivo generado el 2026-11-16 (UTC-5) \\
+\textbf{Origen/\allowbreak{}destino} & 3 752 direcciones 10.0.0.0/\allowbreak{}16 $\rightarrow$ 192.168.50.20:80/\allowbreak{}TCP \\
+\textbf{Observación} & 3 847 segmentos SYN sin ACK en 9,94 s (387 SYN/\allowbreak{}s). El servidor emite 42 SYN/\allowbreak{}ACK. No hay ningún ACK final: cero handshakes completos \\
+\textbf{Hipótesis} & Inundación SYN con direcciones de origen falsificadas \\
+\textbf{Alternativas benignas} & Pico legítimo de clientes (flash crowd), prueba de carga autorizada, clientes detrás de un balanceador que reintentan \\
+\textbf{Validación} & \texttt{tcp.flags.syn == 1 \&\& tcp.flags.ack == 0} $\rightarrow$ 3 847 paquetes. 97,5 \% de las IP envía un solo SYN; TTL entre 48 y 127; ningún SYN lleva opciones TCP \\
+\textbf{Severidad} & Alta: impacto directo en disponibilidad; probabilidad alta en servicios expuestos \\
+\textbf{Acción} & SYN cookies en el servidor y límite de tasa en el gateway; responsable: administrador de infraestructura; verificar que clientes legítimos sigan conectando \\
+\textbf{Integridad} & \texttt{\seqsplit{caso1\_synflood\_lab.pcap}} $\cdot$ 272 254 bytes $\cdot$ SHA-256 \texttt{\seqsplit{a28678760a655d13945d1588ac033784193b2fca43c886bf448af85eb6d31950}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Procedimiento y evidencia}
+
+\begin{lstlisting}
+tcp.flags.syn == 1 && tcp.flags.ack == 0          SYN de apertura
+tcp.flags.syn == 1 && tcp.flags.ack == 1          SYN/ACK del servidor
+tcp.flags == 0x010 && tcp.len == 0                ACK que cierra el handshake
+Statistics > I/O Graphs, intervalo 1 s            gráfica temporal
+Statistics > Endpoints > IPv4                     número de orígenes
+\end{lstlisting}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.70\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso1_analisis_pcap.png}
+  \caption[Salida de \texttt{python analizar\_pcaps.py caso1} sobre la PCAP: conteo de\ldots{}]{Salida de \texttt{python analizar\_pcaps.py caso1} sobre la PCAP: conteo de segmentos, ventanas de 1 s, orígenes y primeros paquetes que cumplen el filtro.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso1_fig3_pcap_syn_por_segundo.png}
+  \caption[SYN y SYN/ACK por segundo (izquierda) y número de SYN enviados por\ldots{}]{SYN y SYN/ACK por segundo (izquierda) y número de SYN enviados por cada IP de origen (derecha), calculados sobre la PCAP.}
+\end{figure}
+
+Tres rasgos sostienen la hipótesis de tráfico fabricado y no de clientes reales:
+
+\begin{itemize}
+  \item \textbf{Ningún handshake termina.} Un pico legítimo produce SYN, pero también ACK finales y datos HTTP. Aquí la relación SYN : SYN/ACK es 91,6 : 1 y la de handshakes completos es cero.
+  \item \textbf{Orígenes de un solo uso.} 3 658 de 3 752 direcciones aparecen una única vez. Los clientes reales retransmiten el SYN cuando no reciben respuesta.
+  \item \textbf{SYN sin opciones TCP.} Los sistemas operativos actuales anuncian MSS, SACK y escala de ventana en el SYN; estos paquetes no traen ninguna opción y todos usan ventana 8192, lo que apunta a una herramienta que construye paquetes.
+\end{itemize}
+
+\textbf{Línea base de comparación} \tagbox{tagrealc}{REAL}. En el equipo analista, \texttt{netstat -ano} registró 40 sockets en \texttt{LISTENING}, 34 \texttt{ESTABLISHED} y \textbf{0 en \texttt{SYN\_RECEIVED}} (figura del Caso 3). En un servidor bajo SYN flood esa última cifra crece hasta el tamaño de la cola de conexiones pendientes; es el dato que debe vigilarse con:
+
+\begin{lstlisting}
+netstat -ano | Select-String "SYN_RECEIVED" | Measure-Object | Select-Object Count
+Get-NetTCPConnection -State SynReceived | Group-Object RemoteAddress | Sort-Object Count -Descending
+\end{lstlisting}
+
+\subsection{Regla de detección propuesta (Suricata)}
+
+\begin{lstlisting}
+alert tcp any any -> 192.168.50.20 80 (msg:"LAB-01 Posible SYN flood hacia servidor web";
+    flags:S,12; flow:stateless;
+    threshold:type both, track by_dst, count 300, seconds 5;
+    classtype:attempted-dos; sid:9000001; rev:2;)
+\end{lstlisting}
+
+El umbral (300 SYN en 5 s hacia un mismo destino) queda por debajo de los 1 900 SYN por cada 5 s medidos en la captura y muy por encima de la carga normal de un servidor de laboratorio. Debe recalibrarse con la línea base real del servicio.
+
+\subsection{Mitigación}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Mitigación (tabla 1)]{Mitigación}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Control} & \textbf{Tipo} & \textbf{Cómo se verifica} \\
+\midrule
+SYN cookies (\texttt{\seqsplit{net.ipv4.tcp\_syncookies=1}}; en Windows, protección SYN del stack TCP/\allowbreak{}IP activa por defecto) & Preventivo & La cola de pendientes deja de saturarse durante una prueba de carga autorizada \\
+Límite de tasa por origen y \texttt{synproxy} en el gateway & Preventivo & Contadores del firewall; clientes legítimos mantienen el servicio \\
+Alerta LAB-01 & Detectivo & La regla se dispara con la PCAP del caso y no con tráfico normal \\
+Escalamiento al proveedor para filtrado aguas arriba & Correctivo & Procedimiento documentado y contacto vigente \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La comparación antes/después con SYN cookies queda como verificación pendiente: requiere un servidor real y una prueba de carga autorizada, que no se ejecutó en este taller.
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Qué recursos mantiene el servidor durante el handshake TCP?} Por cada SYN aceptado, el núcleo crea una entrada en la cola de conexiones incompletas (estado \texttt{SYN\_RECEIVED}) con las direcciones, puertos, números de secuencia iniciales y opciones negociadas, y arma un temporizador para retransmitir el SYN/ACK varias veces. La entrada se libera cuando llega el ACK final o cuando vencen los reintentos (del orden de un minuto). La cola tiene tamaño finito (\texttt{tcp\_max\_syn\_backlog}, \texttt{somaxconn}): cuando se llena, los SYN nuevos se descartan aunque el servidor tenga CPU y memoria libres.
+
+\textbf{¿Qué falsos positivos pueden producir picos legítimos?} Lanzamientos o eventos con muchos clientes simultáneos, pruebas de carga autorizadas, monitoreo sintético, reconexión masiva tras una caída y clientes detrás de un NAT o balanceador que concentran muchos SYN en una sola IP. Se distinguen porque en ellos sí hay handshakes completos, tráfico de aplicación y orígenes que se repiten.
+
+\section{Caso 2 --- DNS tunneling: posible salida encubierta mediante UDP/53}
+
+\tagbox{tagpcapc}{PCAP SINTÉTICA} \tagbox{tagrealc}{ANÁLISIS REAL}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 2 --- DNS tunneling: posible salida encubierta mediante\ldots{} (tabla 1)]{Caso 2 --- DNS tunneling: posible salida encubierta mediante UDP/53}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-02-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Tiempo relativo de la PCAP: t = 0 a 121,65 s. Archivo generado el 2026-11-16 (UTC-5) \\
+\textbf{Origen/\allowbreak{}destino} & 192.168.50.10 (puertos efímeros) $\rightarrow$ 192.168.50.53:53/\allowbreak{}UDP \\
+\textbf{Observación} & 847 consultas, todas de tipo TXT y todas bajo \texttt{\seqsplit{exfil-test.lab.internal}}; 6,96 consultas/\allowbreak{}s (418 por minuto). La primera etiqueta mide 36--38 caracteres y tiene entropía media de 4,35 bits/\allowbreak{}carácter \\
+\textbf{Hipótesis} & Canal encubierto: datos codificados en Base64 dentro del subdominio \\
+\textbf{Alternativas benignas} & Telemetría de software, tokens de CDN o antivirus que usan DNS, validaciones tipo DKIM/\allowbreak{}ACME (TXT), cliente mal configurado \\
+\textbf{Validación} & \texttt{dns.qry.type == 16} $\rightarrow$ 847. Al decodificar la etiqueta como Base64 se obtiene texto legible más un byte contador \\
+\textbf{Severidad} & Alta: posible exfiltración o canal de mando y control \\
+\textbf{Acción} & Identificar el proceso en 192.168.50.10 antes de bloquear; registrar consultas en el resolver; impedir DNS directo hacia fuera \\
+\textbf{Integridad} & \texttt{\seqsplit{caso2\_dnstunnel\_lab.pcap}} $\cdot$ 115 640 bytes $\cdot$ SHA-256 \texttt{\seqsplit{df946077e9557e9255c5b36b5f48d56dc203e542d488b1e1a107e529fbdb97f6}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Procedimiento y evidencia}
+
+\begin{lstlisting}
+udp.port == 53                                    todo el tráfico DNS
+dns.flags.response == 0 && dns.qry.type == 16     consultas TXT
+dns.qry.name.len > 50                             nombres largos
+dns.qry.name contains "exfil-test"                dominio base
+Statistics > DNS                                  tipos de consulta y tasas
+\end{lstlisting}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso2_analisis_pcap.png}
+  \caption[Salida de \texttt{python analizar\_pcaps.py caso2}: volumen, tipos de\ldots{}]{Salida de \texttt{python analizar\_pcaps.py caso2}: volumen, tipos de registro, longitud y entropía de las etiquetas, y decodificación Base64 de las primeras consultas.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso2_fig3_pcap_dns_tasa_entropia.png}
+  \caption[Consultas por ventana de 10 s (izquierda) y distribución de la\ldots{}]{Consultas por ventana de 10 s (izquierda) y distribución de la entropía de la primera etiqueta frente a nombres de host comunes (derecha).}
+\end{figure}
+
+\textbf{Tabla por host y dominio}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption[Procedimiento y evidencia (tabla 1)]{Procedimiento y evidencia}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Cliente} & \textbf{Dominio base} & \textbf{Consultas} & \textbf{Tipo} & \textbf{Etiquetas distintas} & \textbf{Longitud media} & \textbf{Entropía media} \\
+\midrule
+192.168.50.10 & exfil-test.lab.internal & 847 & TXT (100 \%) & 256 & 36,5 & 4,35 bits/\allowbreak{}carácter \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La decodificación confirma el mecanismo: \texttt{\seqsplit{dGhpcyBpcyB0ZXN0IGRhdGEgY2h1bmsgMDAxAA}} es \guillemotleft{}this is test data chunk 001\guillemotright{} seguido de un byte que se incrementa en cada consulta (por eso solo hay 256 etiquetas distintas). La captura no contiene respuestas, de modo que no puede afirmarse nada sobre el canal de retorno ni sobre TTL.
+
+\subsection{Reglas de detección propuestas}
+
+\begin{lstlisting}
+alert dns any any -> any 53 (msg:"LAB-02 DNS etiqueta larga tipo Base64";
+    dns.query; pcre:"/^[A-Za-z0-9+\/_-]{30,}\./";
+    threshold:type both, track by_src, count 30, seconds 60;
+    classtype:policy-violation; sid:9000002; rev:2;)
+\end{lstlisting}
+
+\begin{lstlisting}
+redef enum Notice::Type += { DNS_Etiqueta_Larga };
+
+event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qclass: count)
+    {
+    local etiquetas = split_string(query, /\./);
+    if ( |etiquetas| > 0 && |etiquetas[0]| >= 30 )
+        NOTICE([$note=DNS_Etiqueta_Larga, $conn=c,
+                $msg=fmt("Etiqueta DNS de %d caracteres: %s", |etiquetas[0]|, query),
+                $identifier=cat(c$id$orig_h)]);
+    }
+\end{lstlisting}
+
+La regla combina forma (30 o más caracteres del alfabeto Base64) y volumen (30 por minuto por cliente): cualquiera de las dos condiciones por separado produce falsos positivos con CDN y telemetría.
+
+\subsection{Mitigación}
+
+\begin{itemize}
+  \item Forzar que todos los equipos resuelvan únicamente contra 192.168.50.53 y bloquear en el gateway UDP/TCP 53, DoT (853) y DoH conocidos hacia cualquier otro destino.
+  \item Activar el registro de consultas (\texttt{querylog yes;} en BIND 9) y conservarlo para correlación.
+  \item Aplicar política de respuesta (RPZ) o listas de dominios para el dominio confirmado.
+  \item Investigar el host: \texttt{Get-NetUDPEndpoint} y \texttt{Get-Process -Id <PID>} para ubicar el proceso que genera las consultas. Bloquear solo después de descartar software legítimo.
+\end{itemize}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Por qué el carácter sin conexión de UDP no significa que todo DNS sea malicioso?} UDP es el transporte normal de DNS desde su diseño: una consulta y una respuesta caben en un datagrama y no necesitan estado. Que no haya conexión solo implica que no existe un handshake que observar; no dice nada sobre la intención. Lo anómalo de este caso no es el protocolo, sino el contenido y el comportamiento de las consultas.
+
+\textbf{¿Qué atributos ayudan a distinguir una anomalía?} Longitud de la etiqueta y del nombre completo; entropía de la etiqueta; proporción de tipos poco frecuentes (TXT, NULL); número de subdominios distintos bajo un mismo dominio base; tasa de consultas por cliente; proporción de respuestas NXDOMAIN; antigüedad y reputación del dominio; y si el cliente usa el resolver autorizado. Ningún atributo basta por sí solo: los valores medidos aquí (36 caracteres, 4,35 bits/carácter, 418 consultas/min, 100 \% TXT, un solo dominio) coinciden todos a la vez.
+
+\section{Caso 3 --- Exposición de servicios HTTP, FTP y otros servicios heredados}
+
+Este caso tiene dos partes: un inventario \textbf{real} del equipo propio y un \textbf{escenario simulado} de servidor heredado.
+
+\subsection{Inventario real del equipo analista}
+
+\tagbox{tagrealc}{REAL}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Inventario real del equipo analista (tabla 1)]{Inventario real del equipo analista}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-03-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & 2026-11-16 21:43:31 (UTC-5), reloj del equipo \\
+\textbf{Origen/\allowbreak{}destino} & Equipo analista \guillemotleft{}Cris\guillemotright{}, Windows 10.0.26300; sockets locales \\
+\textbf{Observación} & 40 sockets TCP en \texttt{LISTENING}; 16 puertos escuchan en \texttt{0.0.0.0} (todas las interfaces). Firewall de Windows activo en los tres perfiles \\
+\textbf{Hipótesis} & Configuración por defecto de Windows más servicios instalados para desarrollo que escuchan en todas las interfaces sin necesitarlo \\
+\textbf{Alternativas benignas} & Todos los puertos pueden corresponder a software legítimo; estar en escucha no implica ser alcanzable si el firewall filtra la entrada \\
+\textbf{Validación} & \texttt{netstat -ano} y \texttt{netsh advfirewall show allprofiles state}, guardados en \texttt{\seqsplit{sistema\_netstat.txt}} \\
+\textbf{Severidad} & Media: exposición sin vulnerabilidad confirmada \\
+\textbf{Acción} & Identificar el proceso de cada PID, ligar a 127.0.0.1 lo que solo se usa localmente y revisar reglas de entrada \\
+\textbf{Integridad} & \texttt{\seqsplit{sistema\_netstat.txt}} $\cdot$ 12 812 bytes $\cdot$ SHA-256 \texttt{\seqsplit{d534d1689ed80d315c102e797ef7d49d0a6b16022ea7ec2bf30762094594a586}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso3_netstat_equipo_real.png}
+  \caption[Extracto de \texttt{evidencias/sistema\_netstat.txt}: puertos TCP en escucha\ldots{}]{Extracto de \texttt{evidencias/sistema\_netstat.txt}: puertos TCP en escucha en todas las interfaces del equipo analista, resumen de estados y estado del firewall.}
+\end{figure}
+
+\textbf{Inventario y prioridad}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption[Inventario real del equipo analista (tabla 2)]{Inventario real del equipo analista}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Puerto} & \textbf{PID} & \textbf{Servicio habitual del puerto} & \textbf{Necesidad} & \textbf{Prioridad y acción} \\
+\midrule
+5432 & 7956 & PostgreSQL & Desarrollo local & \textbf{Alta.} Base de datos escuchando en todas las interfaces: fijar \texttt{listen\_addresses = 'localhost'} \\
+445 & 4 & SMB (compartir archivos) & Solo si se comparten carpetas & \textbf{Media.} Mantener bloqueado en perfil público; deshabilitar si no se usa \\
+135, 49664--49672 & varios & RPC de Windows y puertos dinámicos & Sistema operativo & Baja. No exponer fuera de la red local \\
+2179 & 3032 & Hyper-V (consola de máquinas virtuales) & Virtualización & Baja. Restringir a administradores \\
+7680 & 3668 & Optimización de distribución (Windows Update) & Opcional & Baja. Puede desactivarse el intercambio en LAN \\
+5040 & 7360 & Servicio de Windows (CDPSvc) & Sistema operativo & Baja \\
+1462, 1487 & 4 & Proceso System (controlador en modo núcleo) & Por confirmar & Media. Identificar el componente \\
+23130, 23132 & 11904 & No estándar & Por confirmar & \textbf{Media.} Identificar la aplicación \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El servicio se infiere del número de puerto. Para confirmarlo hay que resolver cada PID:
+
+\begin{lstlisting}
+Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess,
+    @{n="Proceso";e={(Get-Process -Id $_.OwningProcess).ProcessName}} | Sort-Object LocalPort
+\end{lstlisting}
+
+\subsection{Escenario simulado: servidor heredado 192.168.50.20}
+
+\tagbox{tagsimc}{ESCENARIO SIMULADO}
+
+Inventario didáctico de un servidor con servicios heredados. Las versiones se eligieron porque tienen vulnerabilidades públicas bien documentadas.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption[Escenario simulado: servidor heredado 192.168.50.20 (tabla 1)]{Escenario simulado: servidor heredado 192.168.50.20}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Puerto} & \textbf{Servicio y versión} & \textbf{Necesidad operativa} & \textbf{Cifrado} & \textbf{Riesgo} \\
+\midrule
+21/\allowbreak{}tcp & vsftpd 2.3.4 & No documentada & Ninguno & \textbf{Crítico.} CVE-2011-2523 (puerta trasera); credenciales en claro \\
+23/\allowbreak{}tcp & telnetd & No & Ninguno & \textbf{Alto.} Sesión completa en claro \\
+22/\allowbreak{}tcp & OpenSSH 9.6 & Sí, administración & SSH & Bajo \\
+80/\allowbreak{}tcp & Apache 2.4.49 & Sí, web de laboratorio & Ninguno & \textbf{Alto.} CVE-2021-41773 (path traversal) \\
+443/\allowbreak{}tcp & Apache 2.4.49 & Sí & TLS 1.2/\allowbreak{}1.3 & Medio. Misma versión vulnerable \\
+3306/\allowbreak{}tcp & MySQL 8.0.32 & Solo interna & Ninguno & \textbf{Alto.} Accesible desde toda la LAN \\
+8080/\allowbreak{}tcp & Tomcat 9.0.70 & No documentada & Ninguno & \textbf{Alto.} Consola de administración sin autenticación \\
+445/\allowbreak{}tcp & Samba 4.17 & No & Firma SMB & Medio. Revisar recursos compartidos \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso3_fig1_riesgo_inventario.png}
+  \caption[Matriz de riesgo (impacto $\times$ probabilidad, escala 1--5) e inventario\ldots{}]{Matriz de riesgo (impacto $\times$ probabilidad, escala 1--5) e inventario del escenario simulado.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso3_fig2_auth_log.png}
+  \caption[Extracto del log de autenticación del escenario simulado: 50 intentos\ldots{}]{Extracto del log de autenticación del escenario simulado: 50 intentos fallidos de FTP en 90 s seguidos de un inicio de sesión Telnet en claro.}
+\end{figure}
+
+\textbf{Plan de remediación}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Escenario simulado: servidor heredado 192.168.50.20 (tabla 2)]{Escenario simulado: servidor heredado 192.168.50.20}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Plazo} & \textbf{Acción} & \textbf{Verificación} \\
+\midrule
+Inmediato & Detener y deshabilitar FTP, Telnet y Tomcat 8080 & \texttt{netstat -ano} ya no muestra 21, 23 ni 8080 en escucha \\
+Inmediato & MySQL ligado a 127.0.0.1 & Conexión desde otro host rechazada \\
+24 h & Actualizar Apache a la versión estable vigente y redirigir HTTP a HTTPS & Cabecera \texttt{Server} y prueba de redirección \\
+1 semana & Transferencia de archivos por SFTP con llaves; MFA para administración; cuentas de mínimo privilegio & Revisión de cuentas y de \texttt{sshd\_config} \\
+Continuo & Bloqueo temporal tras intentos fallidos repetidos y alerta al SIEM & Prueba controlada de intentos fallidos \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Cómo se prioriza un puerto abierto?} Con cuatro preguntas en orden: ¿alguien lo necesita? (si no, se cierra sin más análisis); ¿desde dónde es alcanzable? (loopback, LAN, Internet); ¿qué tan explotable es? (versión con CVE, texto claro, sin autenticación, credenciales por defecto); y ¿qué protege? (criticidad del dato o del servicio). En el inventario real, PostgreSQL en \texttt{0.0.0.0} queda primero porque combina datos, alcance de red y ninguna necesidad de escuchar fuera de loopback.
+
+\textbf{¿Qué diferencia hay entre exposición, vulnerabilidad y explotación?} \emph{Exposición} es que el servicio sea alcanzable desde una red. \emph{Vulnerabilidad} es una debilidad concreta en ese servicio o en su configuración. \emph{Explotación} es el uso efectivo de esa debilidad. El inventario real muestra exposición sin vulnerabilidad confirmada; el escenario simulado muestra exposición con vulnerabilidades conocidas; en ninguno de los dos hay evidencia de explotación, y los 50 intentos fallidos del log simulado son un intento, no un compromiso.
+
+\section{Caso 4 --- Detección de anomalías con IA/ML en tráfico TCP/IP}
+
+\tagbox{tagrealc}{EJECUCIÓN REAL} \tagbox{tagsimc}{DATOS SINTÉTICOS}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 4 --- Detección de anomalías con IA/ML en tráfico TCP/IP (tabla 1)]{Caso 4 --- Detección de anomalías con IA/ML en tráfico TCP/IP}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-04-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Ejecución del 2026-11-16 (UTC-5); semilla fija 42 \\
+\textbf{Origen/\allowbreak{}destino} & 10 000 flujos sintéticos generados con NumPy: 8 500 normales y 1 500 anómalos (SYN flood, túnel DNS, escaneo, ICMP) \\
+\textbf{Observación} & Isolation Forest sobre el 20 \% de evaluación: 286 de 300 anómalos detectados, 6 falsos positivos entre 1 700 normales, AUC 0,999 \\
+\textbf{Hipótesis} & Un detector no supervisado separa los cuatro patrones de ataque usando siete características agregadas por flujo \\
+\textbf{Alternativas /\allowbreak{} límites} & Los datos sintéticos están muy separados por construcción; el resultado no predice el desempeño con tráfico real \\
+\textbf{Validación} & \texttt{\seqsplit{caso4\_ml/\allowbreak{}anomaly\_detector.py}} y \texttt{\seqsplit{caso4\_ml/\allowbreak{}comparar\_linea\_base.py}}, reproducibles \\
+\textbf{Severidad} & Media: herramienta de priorización, no de bloqueo \\
+\textbf{Acción} & Usar el score para ordenar la revisión humana; reentrenar y vigilar la deriva \\
+\textbf{Integridad} & \texttt{\seqsplit{caso4\_fig1\_resultados\_iforest.png}} y \texttt{\seqsplit{caso4\_fig2\_comparacion\_linea\_base.png}} (hashes en el índice) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Atributos}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Atributos (tabla 1)]{Atributos}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Característica} & \textbf{Definición} & \textbf{Normal} & \textbf{Anómalo} \\
+\midrule
+\texttt{syn\_ratio} & SYN /\allowbreak{} paquetes del flujo & 0,02--0,08 & 0,80--1,00 en flood y escaneo \\
+\texttt{dur\_seg} & Duración del flujo (s) & 0,5--300 & Menos de 0,05 en flood y escaneo \\
+\texttt{bytes\_pkt} & Bytes por paquete & 100--1 400 & 40--70 (flood) o 1 200--1 480 (ICMP) \\
+\texttt{unique\_dsts} & Destinos distintos por ventana & 1--8 & 40--200 en escaneo \\
+\texttt{fin\_ratio} & FIN /\allowbreak{} paquetes & 0,02--0,10 & Cercano a 0 \\
+\texttt{dns\_label\_len} & Longitud media de etiqueta DNS & 4--20 & 28--63 en túnel DNS \\
+\texttt{icmp\_ratio} & ICMP /\allowbreak{} paquetes & 0,001--0,02 & 0,30--0,90 en ICMP \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Resultado del detector}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.52\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso4_ejecucion_iforest.png}
+  \caption[Salida real de \texttt{anomaly\_detector.py}: informe de clasificación, AUC,\ldots{}]{Salida real de \texttt{anomaly\_detector.py}: informe de clasificación, AUC, matriz de confusión y medias por característica.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso4_fig1_resultados_iforest.png}
+  \caption[Gráficas producidas por el script: matriz de confusión, distribución\ldots{}]{Gráficas producidas por el script: matriz de confusión, distribución del score, curva ROC y dispersión de dos características.}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Resultado del detector (tabla 1)]{Resultado del detector}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{} & \textbf{Predicho normal} & \textbf{Predicho anómalo} \\
+\midrule
+\textbf{Real normal} (1 700) & 1 694 & 6 (0,4 \%) \\
+\textbf{Real anómalo} (300) & 14 (4,7 \%) & 286 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Precisión 0,98 $\cdot$ recall 0,95 $\cdot$ F1 0,97 $\cdot$ AUC-ROC 0,999 (Isolation Forest, 200 árboles, \texttt{contamination=0.15}).
+
+\subsection{Comparación con una línea base estadística y separación temporal}
+
+La guía pide comparar contra una línea base y separar entrenamiento y evaluación por tiempo. El script original usa una partición aleatoria estratificada, así que se añadió \texttt{comparar\_linea\_base.py}: entrena con el primer 80 \% de los flujos en orden y evalúa con el último 20 \%, y enfrenta el modelo a un z-score robusto (mediana y MAD; alerta si alguna característica supera |z| > 3,5).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso4_comparacion_linea_base.png}
+  \caption[Salida real de \texttt{comparar\_linea\_base.py}: métricas de ambos detectores\ldots{}]{Salida real de \texttt{comparar\_linea\_base.py}: métricas de ambos detectores y recall por tipo de anomalía.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso4_fig2_comparacion_linea_base.png}
+  \caption[Curva ROC y métricas de la línea base estadística frente a Isolation\ldots{}]{Curva ROC y métricas de la línea base estadística frente a Isolation Forest sobre el 20 \% final de los flujos.}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption[Comparación con una línea base estadística y separación\ldots{} (tabla 1)]{Comparación con una línea base estadística y separación temporal}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Detector} & \textbf{TP} & \textbf{FP} & \textbf{FN} & \textbf{Precisión} & \textbf{Recall} & \textbf{F1} & \textbf{Falsos positivos} \\
+\midrule
+Línea base (z-score robusto) & 296 & 63 & 0 & 0,825 & 1,000 & 0,904 & 3,70 \% \\
+Isolation Forest & 282 & 10 & 14 & 0,966 & 0,953 & 0,959 & 0,59 \% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Lectura honesta del resultado:
+
+\begin{itemize}
+  \item La línea base \textbf{no pierde ningún ataque}, pero genera seis veces más falsos positivos (63 frente a 10). En un SOC eso se traduce en carga de trabajo.
+  \item Isolation Forest falla sobre todo en \textbf{túnel DNS} (recall 0,83): ese patrón solo se aparta en una de siete características, y el bosque de aislamiento lo confunde con tráfico normal.
+  \item Que un umbral simple alcance recall 1,0 indica que \textbf{el conjunto sintético es demasiado fácil}. Con tráfico real las clases se solapan y ambas cifras bajarán.
+  \item \texttt{contamination=0.15} coincide con la proporción real de anómalos del conjunto, un dato que en operación no se conoce. Es una ventaja artificial que debe declararse.
+\end{itemize}
+
+\textbf{Ejemplos anonimizados.} Las diez alertas de mayor score del script son flujos con \texttt{icmp\_ratio} entre 0,57 y 0,89 y \texttt{bytes\_pkt} entre 1 220 y 1 460: el patrón del Caso 7. Los flujos no contienen direcciones ni datos personales.
+
+\subsection{Mitigación y uso responsable}
+
+\begin{itemize}
+  \item El score ordena la cola de revisión; ninguna acción de bloqueo depende solo de él.
+  \item Reentrenar con ventanas deslizantes y vigilar la deriva (cambio en la distribución de características y en la tasa de alertas).
+  \item Proteger los datos de entrenamiento: quien pueda inyectar tráfico durante el entrenamiento puede enseñar al modelo a considerar normal un ataque.
+  \item Registrar la versión del modelo, la semilla y los hiperparámetros junto a cada alerta.
+\end{itemize}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Cómo afectan el desbalance de clases y los cambios legítimos de carga?} Con 15 \% de anómalos el problema es manejable; en una red real la proporción suele ser muy inferior al 1 \%, y entonces incluso una tasa de falsos positivos del 0,6 \% produce más alertas falsas que verdaderas. Los cambios legítimos (respaldos nocturnos, despliegues, inicio de semestre) desplazan la línea base y el modelo los marca como anómalos hasta que se reentrena; por eso la evaluación debe hacerse por tiempo y no con partición aleatoria.
+
+\textbf{¿Qué métrica es más útil para el caso?} No la exactitud: con clases desbalanceadas, predecir siempre \guillemotleft{}normal\guillemotright{} ya da una exactitud alta. Para un detector que alimenta a analistas importan el \textbf{recall} (ataques que no se pierden) y la \textbf{precisión} (alertas que valen el tiempo del analista), leídas juntas o resumidas en F1 o en el área bajo la curva precisión-recall. La comparación anterior lo ilustra: la línea base gana en recall y pierde en precisión; cuál conviene depende de cuántas alertas puede revisar el equipo.
+
+\section{Caso 5 --- TCP: resets inesperados e indicios de inyección o desincronización}
+
+\tagbox{tagpcapc}{PCAP SINTÉTICA} \tagbox{tagrealc}{ANÁLISIS REAL}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 5 --- TCP: resets inesperados e indicios de inyección o\ldots{} (tabla 1)]{Caso 5 --- TCP: resets inesperados e indicios de inyección o desincronización}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-05-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Tiempo relativo de la PCAP: t = 0 a 6 869 s (1 h 54 min). Archivo generado el 2026-11-16 (UTC-5) \\
+\textbf{Origen/\allowbreak{}destino} & 192.168.50.10 (puertos efímeros) $\leftrightarrow$ 192.168.50.20:443/\allowbreak{}TCP; RST con IP y MAC de 192.168.50.1 \\
+\textbf{Observación} & 234 sesiones: handshake completo, cero bytes de datos, y un RST entre 28,0 y 30,0 s después (media 29,07 s). Ningún cierre con FIN \\
+\textbf{Hipótesis} & El gateway elimina conexiones inactivas al vencer un timeout de estado cercano a 30 s y lo notifica con RST \\
+\textbf{Alternativas} & Benignas: reinicio del servicio, balanceador, cliente que aborta. Maliciosa: inyección de RST por un tercero en el camino \\
+\textbf{Validación} & \texttt{tcp.flags.reset == 1} $\rightarrow$ 234; todos con MAC origen \texttt{\seqsplit{02:aa:00:00:00:01}} (gateway), distinta de la del servidor; número de secuencia válido en los 234 \\
+\textbf{Severidad} & Media: afecta disponibilidad de sesiones largas; sin indicio de manipulación \\
+\textbf{Acción} & Revisar el timeout de estado TCP del gateway y habilitar keep-alive en la aplicación; confirmar en el log del firewall \\
+\textbf{Integridad} & \texttt{\seqsplit{caso5\_tcpreset\_lab.pcap}} $\cdot$ 65 544 bytes $\cdot$ SHA-256 \texttt{\seqsplit{7e31f67e737c3975484219f31067952f278369c5a9ea1123a5439a938ecdecbb}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Procedimiento y evidencia}
+
+\begin{lstlisting}
+tcp.flags.reset == 1                              todos los RST
+tcp.flags.reset == 1 && eth.src == 02:aa:00:00:00:01     RST emitidos por el gateway
+tcp.flags.fin == 1                                cierres ordenados (ninguno)
+tcp.stream eq 0                                   seguir una sesión completa
+Statistics > Conversations > TCP                  duración y bytes por flujo
+\end{lstlisting}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.70\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso5_analisis_pcap.png}
+  \caption[Salida de \texttt{python analizar\_pcaps.py caso5}: flags, emisor de cada\ldots{}]{Salida de \texttt{python analizar\_pcaps.py caso5}: flags, emisor de cada tipo de segmento (IP, MAC y TTL), tiempos de inactividad y tabla de flujos afectados.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso5_fig2_pcap_rst_inactividad.png}
+  \caption[Tiempo de inactividad previo a cada RST: histograma (izquierda) y\ldots{}]{Tiempo de inactividad previo a cada RST: histograma (izquierda) y evolución durante la captura (derecha).}
+\end{figure}
+
+\textbf{Lo que la evidencia permite afirmar}
+
+\begin{itemize}
+  \item El patrón es \textbf{regular y dependiente del tiempo}: todos los RST llegan justo antes de 30 s de inactividad y ninguna sesión transporta datos. Eso es lo esperable de una tabla de estados con timeout, no de un atacante, que cortaría sesiones activas.
+  \item El emisor está \textbf{identificado en capa 2}: la MAC de origen de los RST es la del gateway, no la del servidor.
+  \item No hay \textbf{ningún dato adicional} (logs del firewall, Zeek, aplicación) dentro de la evidencia. La causa \guillemotleft{}timeout de estado\guillemotright{} es la hipótesis más consistente, pero queda por confirmar con el log del gateway.
+\end{itemize}
+
+\textbf{Limitación de la PCAP sintética.} Los RST llevan como IP de origen 192.168.50.1. En una red real, un firewall que corta una sesión falsifica la dirección del servidor para que el cliente acepte el RST; en ese caso la IP no delata al emisor, y serían la MAC de origen, el TTL y el IP ID los que lo distinguirían del servidor verdadero.
+
+\subsection{Regla de detección propuesta (Suricata)}
+
+\begin{lstlisting}
+alert tcp any any -> $HOME_NET any (msg:"LAB-05 Rafaga de RST hacia un mismo host";
+    flags:R; flow:stateless;
+    threshold:type both, track by_dst, count 20, seconds 60;
+    classtype:protocol-command-decode; sid:9000004; rev:2;)
+\end{lstlisting}
+
+En la captura los RST llegan a razón de uno cada 29 s, así que esta regla no se dispararía: es coherente con la conclusión de causa benigna. La regla busca ráfagas, que son el patrón de una inyección activa.
+
+\subsection{Mitigación}
+
+\begin{itemize}
+  \item Ajustar el timeout de conexiones establecidas del gateway a un valor acorde con la aplicación y activar keep-alive TCP o de aplicación por debajo de ese valor.
+  \item Mantener TLS con validación de certificado: un RST inyectado puede cortar la sesión, pero no leerla ni alterarla.
+  \item Segmentar la red y proteger la capa 2 (inspección ARP dinámica, port security) para dificultar que un tercero se ubique en el camino.
+  \item IDS en el segmento interno con registro de RST por flujo.
+\end{itemize}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Qué causas benignas generan RST?} Conexión a un puerto cerrado; aplicación que cierra un socket con datos sin leer o que termina de forma abrupta; reinicio de un servicio o de un host que pierde el estado de sus conexiones; timeout de inactividad en firewalls, NAT y balanceadores; cierre abortivo deliberado para liberar recursos; y respuestas a segmentos fuera de ventana.
+
+\textbf{¿Qué evidencia adicional haría más sólida la hipótesis de manipulación?} RST que interrumpen sesiones \textbf{activas} y no inactivas; TTL, IP ID o MAC de origen distintos de los del extremo legítimo; el extremo supuestamente emisor que sigue enviando datos después de \guillemotleft{}su\guillemotright{} RST; varios RST con números de secuencia consecutivos que tantean la ventana; cambios en la tabla ARP o ARP gratuitos cerca del evento; capturas simultáneas en ambos extremos donde el RST aparece en uno y no sale del otro; y selectividad por destino o por contenido.
+
+\section{Caso 6 --- UDP: reflexión y amplificación DNS, NTP o SSDP}
+
+\tagbox{tagsimc}{ESCENARIO SIMULADO}
+
+La guía prohíbe generar tráfico de amplificación, y para este caso no se construyó PCAP: se trabaja con contadores simulados y con revisión de configuración.
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 6 --- UDP: reflexión y amplificación DNS, NTP o SSDP (tabla 1)]{Caso 6 --- UDP: reflexión y amplificación DNS, NTP o SSDP}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-06-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Escenario simulado, sin marca temporal real \\
+\textbf{Origen/\allowbreak{}destino} & Servidor DNS 192.168.50.53 (UDP/\allowbreak{}53) y servicio NTP (UDP/\allowbreak{}123) como posibles reflectores; víctima simulada 192.168.50.99 \\
+\textbf{Observación} & Respuesta DNS de 1 680 bytes a una consulta de 60 bytes (factor 28). El resolver acepta recursión desde cualquier origen y el NTP responde a \texttt{monlist} \\
+\textbf{Hipótesis} & Los servicios propios pueden ser usados como reflectores si alguien falsifica la IP de la víctima como origen \\
+\textbf{Alternativas benignas} & Respuestas grandes legítimas (DNSSEC, zonas con muchos registros); ráfaga de consultas de clientes propios \\
+\textbf{Validación} & Revisión de \texttt{\seqsplit{named.conf.options}} y \texttt{ntp.conf} del escenario; las comprobaciones \texttt{dig} y \texttt{ntpq} se documentan como procedimiento, no se ejecutaron \\
+\textbf{Severidad} & Alta: la infraestructura propia participaría en un ataque contra terceros \\
+\textbf{Acción} & Restringir recursión, limitar tasa de respuestas, deshabilitar \texttt{monlist}, filtrado anti-spoofing \\
+\textbf{Integridad} & \texttt{\seqsplit{caso6\_fig1\_reflexion\_amplificacion.png}} y \texttt{\seqsplit{caso6\_fig2\_bind\_config.png}} (hashes en el índice) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso6_fig1_reflexion_amplificacion.png}
+  \caption[Factores de amplificación de referencia y volumen simulado de tráfico\ldots{}]{Factores de amplificación de referencia y volumen simulado de tráfico UDP durante una reflexión DNS (datos simulados).}
+\end{figure}
+
+\textbf{Factores de amplificación de referencia}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 6 --- UDP: reflexión y amplificación DNS, NTP o SSDP (tabla 2)]{Caso 6 --- UDP: reflexión y amplificación DNS, NTP o SSDP}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Protocolo} & \textbf{Puerto} & \textbf{Factor aproximado} & \textbf{Condición que lo permite} \\
+\midrule
+DNS & UDP/\allowbreak{}53 & 28 a 54 & Resolver abierto con recursión \\
+NTP (\texttt{monlist}) & UDP/\allowbreak{}123 & 200 a más de 500 & ntpd anterior a 4.2.7p26 con \texttt{monlist} activo \\
+SSDP & UDP/\allowbreak{}1900 & Alrededor de 30 & UPnP expuesto \\
+Memcached & UDP/\allowbreak{}11211 & 10 000 a 50 000 & Servicio accesible por UDP sin restricción \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Los rangos son los que publica CISA/US-CERT en la alerta TA14-017A; el factor depende del tamaño de la respuesta que cada servidor pueda producir.
+
+\textbf{Comprobación de que los servicios propios no son reflectores} (para ejecutar solo contra servidores propios):
+
+\begin{lstlisting}
+dig @192.168.50.53 example.com A +norecurse       debe responder solo zonas propias
+dig @192.168.50.53 . ANY                          no debe devolver respuestas grandes a externos
+ntpq -c rv 192.168.50.53                          versión de ntpd
+ntpdc -n -c monlist 192.168.50.53                 debe agotar el tiempo o ser rechazado
+\end{lstlisting}
+
+\subsection{Mitigación}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso6_fig2_bind_config.png}
+  \caption[Configuración de BIND 9 del escenario: recursión abierta frente a la\ldots{}]{Configuración de BIND 9 del escenario: recursión abierta frente a la versión remediada.}
+\end{figure}
+
+\begin{lstlisting}
+// named.conf.options
+options {
+    recursion yes;
+    allow-recursion   { 192.168.50.0/24; };     // recursión solo para la LAN
+    allow-query-cache { 192.168.50.0/24; };
+    rate-limit { responses-per-second 15; window 5; };
+};
+\end{lstlisting}
+
+\begin{lstlisting}
+# /etc/ntp.conf
+restrict default kod nomodify notrap nopeer noquery
+restrict -6 default kod nomodify notrap nopeer noquery
+disable monitor
+\end{lstlisting}
+
+\textbf{Regla de detección propuesta}
+
+\begin{lstlisting}
+alert udp $HOME_NET 53 -> any any (msg:"LAB-06 Respuestas DNS grandes en rafaga hacia un destino";
+    dsize:>1000; threshold:type both, track by_dst, count 100, seconds 10;
+    classtype:attempted-dos; sid:9000007; rev:1;)
+\end{lstlisting}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Cómo se diferencia una ráfaga legítima de un patrón de reflexión?} En tráfico legítimo, cada respuesta corresponde a una consulta previa del mismo cliente y el volumen de ambos sentidos guarda proporción. En reflexión, el destino recibe respuestas que nunca pidió; los bytes de respuesta superan por mucho a los de consulta; las consultas se repiten (mismo nombre, tipo ANY o registros grandes); y desde la víctima se ven muchos servidores distintos respondiendo a la vez desde el mismo puerto de origen (53, 123, 1900).
+
+\textbf{¿Qué controles corresponden al servidor y cuáles al proveedor de red?} Al administrador del servidor: no ofrecer recursión a desconocidos, limitar la tasa de respuestas, deshabilitar funciones amplificadoras y apagar servicios UDP innecesarios. Al proveedor u operador de la red: filtrado de direcciones de origen en el borde (BCP 38 / uRPF), que es lo único que impide la falsificación, y mitigación volumétrica aguas arriba. La víctima no puede resolver sola un ataque que satura su enlace.
+
+\section{Caso 7 --- ICMP: escaneo, payloads atípicos y posible túnel}
+
+\tagbox{tagpcapc}{PCAP SINTÉTICA} \tagbox{tagrealc}{ANÁLISIS REAL}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 7 --- ICMP: escaneo, payloads atípicos y posible túnel (tabla 1)]{Caso 7 --- ICMP: escaneo, payloads atípicos y posible túnel}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-07-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Tiempo relativo de la PCAP: t = 0 a 452,3 s (7,5 min). Archivo generado el 2026-11-16 (UTC-5) \\
+\textbf{Origen/\allowbreak{}destino} & 192.168.50.100 $\rightarrow$ 192.168.50.20, ICMP tipo 8 código 0, identificador 0x1337 \\
+\textbf{Observación} & 3 375 Echo Request (448 por minuto), todos con 1 472 bytes de datos (paquete IP de 1 500 bytes). Cero Echo Reply. Cada paquete repite un único byte cuyo valor es el número de secuencia módulo 256 \\
+\textbf{Hipótesis} & Tráfico ICMP generado por herramienta: inundación o prueba de carga al límite de la MTU \\
+\textbf{Alternativas} & Benignas: prueba de MTU (\texttt{ping -f -l 1472}), monitoreo mal configurado. Maliciosa: túnel ICMP \\
+\textbf{Validación} & \texttt{icmp.type == 8 \&\& data.len > 100} $\rightarrow$ 3 375. Entropía por paquete 0,00 bits/\allowbreak{}byte; patrón byte = seq mod 256 en los 3 375 paquetes \\
+\textbf{Severidad} & Media: volumen anómalo desde un host no inventariado; la evidencia \textbf{no} respalda transporte de datos ocultos \\
+\textbf{Acción} & Identificar 192.168.50.100; limitar tasa y tamaño de ICMP hacia servidores \\
+\textbf{Integridad} & \texttt{\seqsplit{caso7\_icmp\_lab.pcap}} $\cdot$ 5 163 774 bytes $\cdot$ SHA-256 \texttt{\seqsplit{318601c9070ecd4928e5424e2d721e42737c4013a95c2f0fe30621843244f93b}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Procedimiento y evidencia}
+
+\begin{lstlisting}
+icmp                                              todo ICMP
+icmp.type == 8                                    Echo Request
+icmp.type == 0                                    Echo Reply (ninguno)
+icmp.type == 8 && data.len > 100                  payload mayor al de un ping normal
+Statistics > Endpoints / I/O Graphs               volumen por IP y por minuto
+\end{lstlisting}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.70\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso7_analisis_pcap.png}
+  \caption[Salida de \texttt{python analizar\_pcaps.py caso7}: volumen, paquetes por\ldots{}]{Salida de \texttt{python analizar\_pcaps.py caso7}: volumen, paquetes por minuto, tamaño y entropía del payload y muestra de paquetes.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso7_fig2_pcap_icmp_tasa_patron.png}
+  \caption[Echo Request por minuto (izquierda) y valor del byte de relleno según\ldots{}]{Echo Request por minuto (izquierda) y valor del byte de relleno según el número de secuencia (derecha): un contador que da la vuelta cada 256 paquetes.}
+\end{figure}
+
+\textbf{Tabla de tamaños y frecuencias}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption[Procedimiento y evidencia (tabla 1)]{Procedimiento y evidencia}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Origen} & \textbf{Echo Request} & \textbf{Echo Reply} & \textbf{Payload} & \textbf{Tasa} & \textbf{Intervalo medio} \\
+\midrule
+192.168.50.100 (analizado) & 3 375 & 0 & 1 472 bytes (100 \%) & 448/\allowbreak{}min & 134 ms, irregular \\
+Referencia: \texttt{ping} de Windows & 4 por ejecución & 4 & 32 bytes & 60/\allowbreak{}min & 1 000 ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Interpretación.} El volumen (unas siete veces la tasa de un ping continuo, sostenida durante 7,5 minutos) y el tamaño (46 veces el de un ping de Windows, el máximo que cabe sin fragmentar) son anómalos. En cambio, la hipótesis de túnel \textbf{no se sostiene} con esta captura: un túnel transporta datos de usuario, que producen entropía alta dentro de cada paquete; aquí cada paquete es un único byte repetido 1 472 veces (entropía 0) y el valor es un simple contador. La entropía de 8 bits/byte que resulta de juntar todos los paquetes se debe solo a que el contador recorre los 256 valores. Tampoco hay respuestas, de modo que no existe canal de retorno. La lectura más consistente es una inundación o prueba de carga unidireccional.
+
+\subsection{Regla de detección propuesta (Suricata)}
+
+\begin{lstlisting}
+alert icmp any any -> $HOME_NET any (msg:"LAB-07 ICMP Echo grande y frecuente";
+    itype:8; dsize:>100;
+    threshold:type both, track by_src, count 50, seconds 60;
+    classtype:misc-activity; sid:9000005; rev:2;)
+\end{lstlisting}
+
+Un ping normal (32 o 56 bytes) nunca cumple \texttt{dsize:>100}, y una prueba de MTU puntual no llega a 50 paquetes por minuto.
+
+\subsection{Mitigación}
+
+\begin{itemize}
+  \item Permitir hacia los servidores solo los tipos ICMP necesarios: Echo (8/0) con límite de tasa, Destination Unreachable (3, incluido el código 4 \guillemotleft{}fragmentación necesaria\guillemotright{}) y Time Exceeded (11).
+  \item Limitar el tamaño de Echo Request aceptado desde redes de usuario.
+  \item Inventariar el origen: en Windows, \texttt{arp -a} y la tabla del switch para ubicar la MAC \texttt{02:bb:00:00:01:00}.
+  \item Monitorizar volumen de ICMP por host en lugar de bloquearlo en bloque.
+\end{itemize}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Qué funciones legítimas cumple ICMP?} Diagnóstico de alcance y latencia (Echo); notificación de errores de entrega (Destination Unreachable); descubrimiento de la MTU del camino (tipo 3 código 4); detección de bucles y \texttt{traceroute} (Time Exceeded); y, en IPv6, funciones imprescindibles como descubrimiento de vecinos y de routers (ICMPv6).
+
+\textbf{¿Qué impacto tendría bloquearlo completamente?} Se rompe el descubrimiento de MTU: las conexiones se establecen pero se quedan colgadas al enviar paquetes grandes, un fallo difícil de diagnosticar. Las aplicaciones dejan de recibir errores inmediatos y esperan hasta agotar el tiempo. Se pierde \texttt{ping} y \texttt{traceroute} para operación. En IPv6 la red deja de funcionar. Por eso el control correcto es filtrar por tipo y limitar la tasa.
+
+\section{Caso 8 --- Escaneo de puertos y fingerprinting de servicios}
+
+\tagbox{tagpcapc}{PCAP SINTÉTICA} \tagbox{tagrealc}{ANÁLISIS REAL}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 8 --- Escaneo de puertos y fingerprinting de servicios (tabla 1)]{Caso 8 --- Escaneo de puertos y fingerprinting de servicios}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-08-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Tiempo relativo de la PCAP: t = 0 a 29,95 s. Archivo generado el 2026-11-16 (UTC-5) \\
+\textbf{Origen/\allowbreak{}destino} & 192.168.50.100 $\rightarrow$ 192.168.50.20, puertos TCP 1 a 65 535 \\
+\textbf{Observación} & 65 535 SYN, uno por puerto, en orden ascendente y con intervalo constante de 457 $\mu$s (2 188 puertos/\allowbreak{}s). Respuestas: 65 528 RST/\allowbreak{}ACK y 7 SYN/\allowbreak{}ACK. El origen nunca completa el handshake \\
+\textbf{Hipótesis} & Escaneo SYN (semiabierto) de todo el rango de puertos, previo a un reconocimiento de servicios \\
+\textbf{Alternativas benignas} & Escáner de vulnerabilidades autorizado, inventario de activos, monitoreo no notificado \\
+\textbf{Validación} & \texttt{tcp.flags.syn == 1 \&\& tcp.flags.ack == 0} $\rightarrow$ 65 535; \texttt{tcp.flags.syn == 1 \&\& tcp.flags.ack == 1} $\rightarrow$ 7 \\
+\textbf{Severidad} & Media: reconocimiento completo; revela el mapa de servicios del servidor \\
+\textbf{Acción} & Verificar si el escaneo estaba autorizado; identificar el host; reducir la superficie expuesta \\
+\textbf{Integridad} & \texttt{\seqsplit{caso8\_portscan\_lab.pcap}} $\cdot$ 9 174 924 bytes $\cdot$ SHA-256 \texttt{\seqsplit{f0f0436c39121ac1b459674f70e2faaf5d7273366627d56911429acba7bd28b0}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Procedimiento y evidencia}
+
+\begin{lstlisting}
+tcp.flags.syn == 1 && tcp.flags.ack == 0          sondeos
+tcp.flags.syn == 1 && tcp.flags.ack == 1          puertos abiertos
+tcp.flags.reset == 1 && tcp.flags.ack == 1        puertos cerrados
+Statistics > Conversations > TCP                  un flujo por puerto
+\end{lstlisting}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.70\linewidth,height=0.82\textheight,keepaspectratio]{figures/cap_caso8_analisis_pcap.png}
+  \caption[Salida de \texttt{python analizar\_pcaps.py caso8}: características del\ldots{}]{Salida de \texttt{python analizar\_pcaps.py caso8}: características del sondeo, respuestas del servidor y los siete puertos que respondieron SYN/ACK.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso8_fig2_pcap_barrido_puertos.png}
+  \caption[Puerto destino sondeado a lo largo del tiempo: barrido lineal de los\ldots{}]{Puerto destino sondeado a lo largo del tiempo: barrido lineal de los 65 535 puertos, con los siete que respondieron SYN/ACK.}
+\end{figure}
+
+\textbf{Lista de exposición del servidor} (puertos que respondieron SYN/ACK)
+
+\begin{table}[H]
+\centering
+\small
+\caption[Procedimiento y evidencia (tabla 1)]{Procedimiento y evidencia}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Puerto} & \textbf{Servicio esperado} & \textbf{Necesario} & \textbf{Acción} \\
+\midrule
+21 & FTP & No & Cerrar; SFTP sobre el 22 \\
+22 & SSH & Sí & Restringir por origen; llaves en lugar de contraseña \\
+80 & HTTP & Sí & Redirigir a HTTPS \\
+443 & HTTPS & Sí & Mantener actualizado \\
+3306 & MySQL & Solo local & Ligar a 127.0.0.1 \\
+8080 & HTTP alterno & No documentado & Cerrar o autenticar \\
+8443 & HTTPS alterno & No documentado & Cerrar o restringir \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El servicio se infiere del número de puerto. \textbf{La captura no contiene banners ni datos de aplicación} (el origen no completa ninguna conexión), así que no hay evidencia de versiones ni de huella de sistema operativo: los SYN no llevan opciones TCP, que es lo que se usa para ese tipo de huella. Las versiones del Caso 3 pertenecen al escenario simulado, no a esta PCAP.
+
+\textbf{Indicadores observados}
+
+\begin{itemize}
+  \item Un solo origen contacta 65 535 puertos distintos de un mismo destino en 30 s.
+  \item 99,99 \% de los intentos van a puertos cerrados.
+  \item Orden estrictamente secuencial e intervalo sin variación: firma de herramienta automática. Los escáneres habituales aleatorizan el orden de los puertos; un barrido 1, 2, 3\ldots{} es más fácil de detectar.
+  \item Ninguna conexión se completa después del SYN/ACK.
+\end{itemize}
+
+\subsection{Regla de detección propuesta (Suricata)}
+
+\begin{lstlisting}
+alert tcp any any -> $HOME_NET any (msg:"LAB-08 Posible escaneo SYN: muchos intentos desde un origen";
+    flags:S,12; flow:stateless;
+    threshold:type both, track by_src, count 100, seconds 10;
+    classtype:attempted-recon; sid:9000006; rev:2;)
+\end{lstlisting}
+
+El umbral cuenta SYN por origen. Una detección más precisa cuenta \textbf{puertos destino distintos} por origen, que es lo que hace el script \texttt{policy/misc/scan} de Zeek. Para el monitoreo autorizado se añade una supresión explícita:
+
+\begin{lstlisting}
+suppress gen_id 1, sig_id 9000006, track by_src, ip 192.168.50.10
+\end{lstlisting}
+
+\subsection{Plan de endurecimiento}
+
+\begin{enumerate}
+  \item Cerrar 21, 8080 y 8443 si no tienen responsable; MySQL solo en loopback.
+  \item Firewall del servidor con política de entrada \guillemotleft{}denegar por defecto\guillemotright{} y permitidos 22, 80 y 443 por origen.
+  \item Descartar en silencio (DROP) en el perímetro para que el escaneo sea más lento y menos informativo.
+  \item Bloqueo temporal del origen tras la alerta, con revisión humana y lista de excepciones.
+  \item Escaneo propio periódico y autorizado para comparar contra esta lista de exposición.
+\end{enumerate}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Qué limitaciones tiene atribuir un escaneo a una sola IP?} La dirección identifica una interfaz, no a una persona: puede ser un equipo comprometido usado como pivote, una salida de NAT, VPN o proxy compartida por muchos usuarios, o una dirección reasignada por DHCP. En un escaneo SYN el origen necesita ver las respuestas, así que la IP no suele ser falsa, pero puede haber señuelos mezclados. Un escaneo distribuido reparte los puertos entre muchas IP para no superar umbrales. La atribución requiere correlacionar con DHCP, tabla ARP/MAC del switch, autenticación de red y registros del propio host.
+
+\textbf{¿Cómo se reducen falsos positivos por monitoreo autorizado?} Con un inventario de escáneres autorizados (IP, ventana horaria, responsable); supresiones por origen para esas IP, nunca globales; anuncio de las ventanas de escaneo en el SIEM; y revisión periódica de las excepciones. Una alerta de escaneo desde una IP autorizada fuera de su ventana sigue siendo una alerta.
+
+\section{Caso 9 --- Priorización y correlación de alertas con IA y SIEM}
+
+\tagbox{tagsimc}{ESCENARIO SIMULADO}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 9 --- Priorización y correlación de alertas con IA y SIEM (tabla 1)]{Caso 9 --- Priorización y correlación de alertas con IA y SIEM}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-09-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Escenario simulado de una sesión de monitoreo de 6 horas \\
+\textbf{Origen/\allowbreak{}destino} & Cinco fuentes: Suricata (127 alertas), firewall (342), DNS (89), Zeek conn.log (1 204), eventos de Windows (547) \\
+\textbf{Observación} & 2 309 eventos brutos; tras normalizar y eliminar duplicados quedan 847; agrupados por host y ventana de tiempo forman 23 incidentes (3 críticos, 7 altos, 13 medios) \\
+\textbf{Hipótesis} & La mayoría de las alertas describe la misma actividad vista por varias fuentes; un solo host (192.168.50.100) concentra los incidentes críticos \\
+\textbf{Alternativas benignas} & Reglas ruidosas, escáner autorizado, cambios de configuración que disparan varias fuentes a la vez \\
+\textbf{Validación} & Diseño del pipeline y criterios de prioridad; los conteos son sintéticos \\
+\textbf{Severidad} & Media \\
+\textbf{Acción} & Escalar los incidentes críticos y altos a revisión humana; ningún bloqueo automático \\
+\textbf{Integridad} & \texttt{\seqsplit{caso9\_fig1\_correlacion\_alertas.png}} y \texttt{\seqsplit{caso9\_fig2\_pipeline.png}} (hashes en el índice) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso9_fig2_pipeline.png}
+  \caption[Pipeline de correlación: recolección, normalización, deduplicación y\ldots{}]{Pipeline de correlación: recolección, normalización, deduplicación y enriquecimiento, agrupación, priorización y revisión humana.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso9_fig1_correlacion_alertas.png}
+  \caption[Alertas brutas por fuente y severidad, y agrupación de eventos por\ldots{}]{Alertas brutas por fuente y severidad, y agrupación de eventos por tiempo y score (datos simulados).}
+\end{figure}
+
+\subsection{Etapas del pipeline}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Etapas del pipeline (tabla 1)]{Etapas del pipeline}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Etapa} & \textbf{Qué hace} & \textbf{Cómo conserva la trazabilidad} \\
+\midrule
+Recolección & Recibe EVE JSON de Suricata, syslog del firewall, querylog de DNS, logs de Zeek y eventos de Windows & Guarda el evento original con su hash \\
+Normalización & Unifica marca de tiempo (ISO 8601, UTC), IP, puerto, protocolo y tipo de evento & Mantiene el identificador de la fuente \\
+Deduplicación & Agrupa eventos con igual origen, destino, tipo y ventana de 60 s & Conserva el conteo y la lista de eventos originales \\
+Enriquecimiento & Añade criticidad del activo, propietario, si la IP es interna y si pertenece a un escáner autorizado & Campos añadidos marcados como derivados \\
+Agrupación & Reúne eventos por host y ventana temporal; un detector de anomalías sobre conteos por host señala desviaciones & El incidente referencia todos sus eventos \\
+Priorización & Calcula un score explicable & Guarda los factores del score \\
+Revisión humana & El analista confirma, descarta o escala & Registro de la decisión, con responsable y hora \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Criterios de prioridad}
+
+\texttt{score = 40 $\times$ (severidad máxima / 5) + 30 $\times$ (criticidad del activo / 5) + 30 $\times$ (fuentes que coinciden / 3, con tope en 1)}. El resultado va de 0 a 100 y cada sumando se guarda con la alerta.
+
+\begin{table}[H]
+\centering
+\small
+\caption[Criterios de prioridad (tabla 1)]{Criterios de prioridad}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Nivel} & \textbf{Score} & \textbf{Criterio} & \textbf{Respuesta} \\
+\midrule
+Crítico & 85 o más & Tres o más fuentes coinciden sobre un activo crítico con severidad máxima & Revisión inmediata; contención decidida por una persona \\
+Alto & 65--84 & Dos fuentes coinciden o hay un servicio expuesto involucrado & Investigar en menos de 1 h \\
+Medio & 40--64 & Una fuente con indicador moderado & Revisar en el turno \\
+Bajo & Menos de 40 & Evento aislado o telemetría de fondo & Registrar y observar tendencia \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Ejemplo de alerta enriquecida}
+
+Construida con los hallazgos medidos en los Casos 7 y 8:
+
+\begin{lstlisting}
+{
+  "incidente": "INC-2026-0007",
+  "host_origen": "HOST_A (192.168.50.100, no inventariado)",
+  "activo_destino": "SRV_WEB (192.168.50.20, criticidad 4/5)",
+  "ventana": "t0 a t0 + 8 min",
+  "eventos": [
+    {"fuente": "IDS", "regla": "LAB-08 Posible escaneo SYN", "detalle": "65 535 puertos en 29,95 s; 7 abiertos"},
+    {"fuente": "IDS", "regla": "LAB-07 ICMP Echo grande y frecuente", "detalle": "3 375 Echo Request de 1 472 bytes"},
+    {"fuente": "firewall", "detalle": "conexiones nuevas desde HOST_A fuera de la línea base"}
+  ],
+  "score": 76,
+  "nivel": "Alto",
+  "factores": {"severidad_max": "4/5 -> 32", "criticidad_activo": "4/5 -> 24", "fuentes": "2/3 -> 20"},
+  "contexto": {"host_no_inventariado": true},
+  "hipotesis": "Reconocimiento seguido de inundación ICMP desde un mismo host",
+  "alternativas_benignas": ["Escáner autorizado no registrado", "Prueba de carga"],
+  "accion_sugerida": "Identificar HOST_A por MAC y puerto de switch; confirmar autorización",
+  "requiere_validacion_humana": true
+}
+\end{lstlisting}
+
+\subsection{Registro de validación humana}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Registro de validación humana (tabla 1)]{Registro de validación humana}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Incidente} & \textbf{Decisión del analista} & \textbf{Evidencia consultada} & \textbf{Resultado} \\
+\midrule
+INC-2026-0007 & Confirmado como reconocimiento; no bloquear aún & PCAP de los Casos 7 y 8; inventario & Escalar a red para ubicar el host \\
+INC-2026-0003 & Descartado & Ventana de respaldo programada & Añadir excepción documentada \\
+INC-2026-0011 & Requiere más datos & Solo una fuente & Activar registro adicional 24 h \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El registro es un ejemplo del formato; las decisiones son ilustrativas.
+
+\subsection{Uso de un LLM en el triage}
+
+\begin{itemize}
+  \item Solo recibe alertas \textbf{anonimizadas} (seudónimos como \texttt{HOST\_A}), nunca capturas, credenciales ni datos personales.
+  \item Se usa para resumir y proponer preguntas de investigación; no decide ni ejecuta acciones.
+  \item Toda afirmación del resumen se verifica contra el evento original antes de usarse; lo que no se pueda verificar se descarta.
+  \item El contenido de los logs es dato no confiable: un atacante puede escribir texto en un campo (un User-Agent, un nombre de host) para manipular el resumen. El modelo no debe tener permisos de acción.
+  \item Se registra qué modelo y qué instrucción produjeron cada resumen.
+\end{itemize}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Cómo explicar una alerta a un analista?} Con los hechos primero y la interpretación después: qué se observó, entre qué equipos, cuándo y durante cuánto tiempo; cuánto se aparta de la línea base y en qué atributos; qué fuentes coinciden; qué factores componen el score; qué explicaciones benignas existen; y qué comprobación concreta confirma o descarta la hipótesis. Un score sin sus factores no es una explicación.
+
+\textbf{¿Qué riesgo supone automatizar bloqueos basados solo en una puntuación?} Bloquear un activo legítimo y causar la indisponibilidad que se quería evitar; que un atacante provoque bloqueos a voluntad falsificando el origen (denegación de servicio autoinducida); que aprenda el umbral y opere por debajo; que la deriva del modelo dispare bloqueos masivos tras un cambio legítimo; y que no quede claro quién responde por la decisión. Por eso el bloqueo automático se reserva a reglas deterministas de alta confianza, con duración limitada y reversión sencilla.
+
+\section{Caso 10 --- Mensajería XMPP: interceptación y errores de TLS}
+
+\tagbox{tagsimc}{ESCENARIO SIMULADO}
+
+No se instaló un servidor XMPP. El caso se resuelve como auditoría de una configuración simulada de Openfire 4.6.0, y deja documentado el procedimiento para repetirla sobre un servidor real.
+
+\begin{table}[H]
+\centering
+\small
+\caption[Caso 10 --- Mensajería XMPP: interceptación y errores de TLS (tabla 1)]{Caso 10 --- Mensajería XMPP: interceptación y errores de TLS}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo} & \textbf{Registro} \\
+\midrule
+\textbf{Identificador} & CASO-10-EV-001 \\
+\textbf{Fecha/\allowbreak{}hora} & Escenario simulado, sin marca temporal real \\
+\textbf{Origen/\allowbreak{}destino} & Clientes XMPP $\rightarrow$ 192.168.50.30, puertos 5222 (cliente-servidor), 5269 (servidor-servidor), 9090/\allowbreak{}9091 (consola) \\
+\textbf{Observación} & TLS 1.0 habilitado; certificado autofirmado y vencido; suites RC4 y 3DES disponibles; STARTTLS opcional; consola de administración por HTTP en el 9090; SASL PLAIN permitido sin TLS \\
+\textbf{Hipótesis} & Configuración inicial nunca endurecida; un atacante en el camino podría forzar una negociación débil o capturar credenciales \\
+\textbf{Alternativas benignas} & Compatibilidad con clientes antiguos; entorno de pruebas sin datos reales \\
+\textbf{Validación} & Lista de verificación TLS; comandos de comprobación documentados, no ejecutados \\
+\textbf{Severidad} & Alta: confidencialidad de mensajes y credenciales \\
+\textbf{Acción} & Exigir TLS 1.2 o superior, renovar el certificado, cerrar la consola HTTP, autenticación SCRAM \\
+\textbf{Integridad} & \texttt{\seqsplit{caso10\_fig1\_tls\_analisis.png}} (hash en el índice) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth,height=0.82\textheight,keepaspectratio]{figures/caso10_fig1_tls_analisis.png}
+  \caption[Lista de verificación TLS y suites de cifrado del escenario simulado:\ldots{}]{Lista de verificación TLS y suites de cifrado del escenario simulado: estado actual frente al recomendado.}
+\end{figure}
+
+\subsection{Lista de verificación TLS}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Lista de verificación TLS (tabla 1)]{Lista de verificación TLS}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Control} & \textbf{Estado en el escenario} & \textbf{Riesgo} \\
+\midrule
+Versión mínima TLS 1.2 & Falla: acepta TLS 1.0 & Protocolos obsoletos (RFC 8996) \\
+TLS 1.3 disponible & Falla & Sin las mejoras de privacidad y rendimiento \\
+Certificado vigente & Falla: vencido & Los clientes aprenden a ignorar advertencias \\
+Cadena de confianza & Falla: autofirmado & No hay forma de distinguirlo de un impostor \\
+Nombre del certificado coincide con el dominio XMPP & Por verificar & Suplantación \\
+Solo suites AEAD con secreto perfecto hacia adelante & Falla: RC4 y 3DES presentes & Cifrados rotos (RFC 7465) \\
+STARTTLS obligatorio & Parcial: opcional & Ataque de degradación eliminando STARTTLS \\
+SASL sin PLAIN fuera de TLS & Falla & Credenciales en claro \\
+Consola de administración solo por HTTPS y red de gestión & Falla: HTTP en 9090 & Captura de la sesión de administrador \\
+Cifrado de extremo a extremo disponible (OMEMO) & No evaluado & El servidor ve el contenido \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Procedimiento de verificación sobre un servidor real}
+
+\begin{lstlisting}
+openssl s_client -connect 192.168.50.30:5222 -starttls xmpp -xmpphost lab.internal
+openssl s_client -connect 192.168.50.30:5222 -starttls xmpp -tls1      debe fallar
+openssl x509 -noout -subject -issuer -dates -ext subjectAltName         sobre el certificado recibido
+\end{lstlisting}
+
+En Wireshark, con \texttt{tcp.port == 5222}, una sesión bien protegida muestra \texttt{<starttls/>} en claro y, a continuación, solo registros TLS (\texttt{tls.record.content\_type == 23}, datos de aplicación). Si después de la negociación siguen viéndose etiquetas \texttt{<message>} o \texttt{<auth mechanism="PLAIN">}, la sesión no está cifrada. Los metadatos (direcciones, puertos, horas, tamaños) quedan visibles en ambos casos.
+
+\subsection{Plan de corrección}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Plan de corrección (tabla 1)]{Plan de corrección}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Prioridad} & \textbf{Acción} \\
+\midrule
+Inmediata & Cerrar el puerto 9090 y dejar la consola solo en 9091 (HTTPS), accesible desde la red de gestión \\
+Inmediata & Política de seguridad del cliente en \guillemotleft{}requerida\guillemotright{} (STARTTLS obligatorio); deshabilitar SASL PLAIN sin TLS \\
+24 h & Emitir un certificado válido (CA interna para \texttt{lab.internal}) con el nombre correcto y renovación automática \\
+24 h & Deshabilitar TLS 1.0 y 1.1; permitir solo TLS 1.2 y 1.3 con suites AEAD (AES-GCM, ChaCha20-Poly1305) \\
+1 semana & Actualizar Openfire a la versión estable vigente; SCRAM-SHA-256 como mecanismo de autenticación \\
+Según modelo de amenaza & Habilitar OMEMO en los clientes para cifrado de extremo a extremo \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Preguntas de análisis}
+
+\textbf{¿Qué protege TLS y qué no protege?} Protege la confidencialidad y la integridad de los datos en tránsito entre dos puntos y autentica al servidor (y al cliente, si se usan certificados de cliente). No protege los metadatos (quién se comunica con quién, cuándo y cuánto), los datos una vez descifrados en el servidor o en los equipos de los usuarios, los registros e historiales almacenados, ni sirve de nada si el cliente acepta certificados inválidos.
+
+\textbf{¿En qué se diferencia el cifrado de transporte del cifrado de extremo a extremo?} El cifrado de transporte protege cada tramo: cliente-servidor y servidor-servidor. El servidor descifra, procesa y vuelve a cifrar, así que el administrador o quien comprometa el servidor puede leer los mensajes. En el cifrado de extremo a extremo (OMEMO en XMPP) las claves solo existen en los dispositivos de los interlocutores; el servidor transporta contenido que no puede leer. Son complementarios: TLS protege credenciales y metadatos del tramo, y el extremo a extremo protege el contenido frente al propio servidor.

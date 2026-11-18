@@ -1,0 +1,60 @@
+\chapter{\'Indice de evidencias e integridad}
+\label{app:evidencias}
+Todos los archivos están en la carpeta \texttt{evidencias/}. Los hashes se calcularon con SHA-256 sobre los archivos originales y pueden verificarse con \texttt{python analizar\_pcaps.py hashes} o, en PowerShell, con \texttt{Get-FileHash -Algorithm SHA256 evidencias\textbackslash{}*}.
+
+{\small
+\begin{xltabular}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\caption[Índice de evidencias e integridad (tabla 1)]{Índice de evidencias e integridad}\\
+\toprule
+\textbf{Archivo} & \textbf{Tipo} & \textbf{Bytes} & \textbf{SHA-256} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Archivo} & \textbf{Tipo} & \textbf{Bytes} & \textbf{SHA-256} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\texttt{\seqsplit{cap\_caso1\_analisis\_pcap.png}} & Captura & 450 988 & {\scriptsize\ttfamily\seqsplit{7ee21fdcdfc8f98cacc0442042c3b59a0847b5943300bfef9e9d2ab61d39a29c}} \\
+\texttt{\seqsplit{cap\_caso2\_analisis\_pcap.png}} & Captura & 413 370 & {\scriptsize\ttfamily\seqsplit{e4d2e3a34bd208ae9b5d5aa821a18697d8fe5e9014a03a8de873e9f8478e8408}} \\
+\texttt{\seqsplit{cap\_caso3\_netstat\_equipo\_real.png}} & Captura & 253 719 & {\scriptsize\ttfamily\seqsplit{87615f970132e4512979680954dc588695476abfc59ccc83d86f00a81468454e}} \\
+\texttt{\seqsplit{cap\_caso4\_comparacion\_linea\_base.png}} & Captura & 140 209 & {\scriptsize\ttfamily\seqsplit{f897c2ab41a89bce829897f2cf0ec63f82770382a2a539a7fe769b2bfdfd235f}} \\
+\texttt{\seqsplit{cap\_caso4\_ejecucion\_iforest.png}} & Captura & 227 650 & {\scriptsize\ttfamily\seqsplit{2d7b64614a28a3344e0dead37d3f67a1d0cf4293ccf9bd1d0480bfb8586baeec}} \\
+\texttt{\seqsplit{cap\_caso5\_analisis\_pcap.png}} & Captura & 441 687 & {\scriptsize\ttfamily\seqsplit{fd173c307c33fd5d3b50541749a57e5bd70c6a9f3d7ca97af7f616613595efca}} \\
+\texttt{\seqsplit{cap\_caso7\_analisis\_pcap.png}} & Captura & 416 025 & {\scriptsize\ttfamily\seqsplit{79447f7fde8bcc05c1f08a616936d8c41d30845467959a8fa6ae3c2d3304c986}} \\
+\texttt{\seqsplit{cap\_caso8\_analisis\_pcap.png}} & Captura & 436 048 & {\scriptsize\ttfamily\seqsplit{d2d106463eb98652f3c70eb3538d44d58780bddc02c322dbf33361927d0f118e}} \\
+\texttt{\seqsplit{cap\_parte2\_base\_datos.png}} & Captura & 134 411 & {\scriptsize\ttfamily\seqsplit{24006b07d29036b1ffc306a429ab6ecbd43d6b300f73968a119bbaf87ac60860}} \\
+\texttt{\seqsplit{cap\_parte2\_frontend\_panel.png}} & Captura & 165 640 & {\scriptsize\ttfamily\seqsplit{9475ed7c68af600d93a01b72639c8d2158776f8147b0098f357588e9a0265c3d}} \\
+\texttt{\seqsplit{caso10\_fig1\_tls\_analisis.png}} & Figura de escenario & 140 982 & {\scriptsize\ttfamily\seqsplit{88acdf2e4469c8e126a4583b5320ff0da48c591bf22f1b3aa18e253baed46842}} \\
+\texttt{\seqsplit{caso1\_fig1\_syn\_temporal\_topsources.png}} & Figura de escenario & 140 222 & {\scriptsize\ttfamily\seqsplit{be49b0bcc6b90b43eba92fc0afa000e34993881b2e834283c7a23f22f6c98124}} \\
+\texttt{\seqsplit{caso1\_fig2\_netstat\_estados.png}} & Figura de escenario & 69 748 & {\scriptsize\ttfamily\seqsplit{03ed80a02e7d04e9acbb5f078681e4993f980220adb05845e20af9f1a5169b91}} \\
+\texttt{\seqsplit{caso1\_fig3\_pcap\_syn\_por\_segundo.png}} & Figura calculada & 87 765 & {\scriptsize\ttfamily\seqsplit{f822357b383b074f6c54218415c1256a0e0f904b221dffa2049e243998c7fc94}} \\
+\texttt{\seqsplit{caso1\_synflood\_lab.pcap}} & PCAP sintética & 272 254 & {\scriptsize\ttfamily\seqsplit{a28678760a655d13945d1588ac033784193b2fca43c886bf448af85eb6d31950}} \\
+\texttt{\seqsplit{caso2\_dnstunnel\_lab.pcap}} & PCAP sintética & 115 640 & {\scriptsize\ttfamily\seqsplit{df946077e9557e9255c5b36b5f48d56dc203e542d488b1e1a107e529fbdb97f6}} \\
+\texttt{\seqsplit{caso2\_fig1\_dns\_analisis.png}} & Figura de escenario & 124 317 & {\scriptsize\ttfamily\seqsplit{ba24c6d66d4af2f306f62838142fe859f463683219544b6edcbb26bcfd7fe1fc}} \\
+\texttt{\seqsplit{caso2\_fig2\_tabla\_dominios.png}} & Figura de escenario & 81 600 & {\scriptsize\ttfamily\seqsplit{47976ef7dcf49dc5ff35658160f81706a54f440aec2427c6de9df2c7d3f2179b}} \\
+\texttt{\seqsplit{caso2\_fig3\_pcap\_dns\_tasa\_entropia.png}} & Figura calculada & 83 356 & {\scriptsize\ttfamily\seqsplit{380f2e214516b4e2abd4129a9757b5a8dca81da227cd1e3f2dfd36f69ee8353e}} \\
+\texttt{\seqsplit{caso3\_fig1\_riesgo\_inventario.png}} & Figura de escenario & 156 404 & {\scriptsize\ttfamily\seqsplit{fe069ad64c7a9f5b18190b35fadb68538bc3797ee6a120fe5e1c1256b5e4c875}} \\
+\texttt{\seqsplit{caso3\_fig2\_auth\_log.png}} & Figura de escenario & 98 688 & {\scriptsize\ttfamily\seqsplit{17f1c3f7e4f33f1c825f66d2b0fa9412ccef5dedebce0d94cb44c4acd0504dae}} \\
+\texttt{\seqsplit{caso4\_fig1\_resultados\_iforest.png}} & Figura calculada & 182 113 & {\scriptsize\ttfamily\seqsplit{ac89d8a6e261246158f955ea7d43411a1c80e94bd8c28441cca771d050267dc6}} \\
+\texttt{\seqsplit{caso4\_fig2\_comparacion\_linea\_base.png}} & Figura calculada & 94 742 & {\scriptsize\ttfamily\seqsplit{1bc47cfe49120e958964a65d14f97f6756155524cfa673d8a073027ef43c006e}} \\
+\texttt{\seqsplit{caso4\_ml\_resultados.png}} & Figura calculada & 175 161 & {\scriptsize\ttfamily\seqsplit{e3e4849a5d68eebfdb1b5cc9e328308aa2688428463a89cdc84f001fcc337cc4}} \\
+\texttt{\seqsplit{caso5\_fig1\_rst\_analisis.png}} & Figura de escenario & 144 382 & {\scriptsize\ttfamily\seqsplit{d0f04c314837cf1ed8d1835446ce42aa783db8ba0102bdf14786953c9cd4c5ed}} \\
+\texttt{\seqsplit{caso5\_fig2\_pcap\_rst\_inactividad.png}} & Figura calculada & 101 328 & {\scriptsize\ttfamily\seqsplit{4bc2a82162040714de36e91a44f16ef6f51c3eb76f8d58af5474e403835b72a7}} \\
+\texttt{\seqsplit{caso5\_tcpreset\_lab.pcap}} & PCAP sintética & 65 544 & {\scriptsize\ttfamily\seqsplit{7e31f67e737c3975484219f31067952f278369c5a9ea1123a5439a938ecdecbb}} \\
+\texttt{\seqsplit{caso6\_fig1\_reflexion\_amplificacion.png}} & Figura de escenario & 183 934 & {\scriptsize\ttfamily\seqsplit{14e5ce4f3b0d4993d36138d705aa01e2e666a07988299698c06c7cf4d4b05ecf}} \\
+\texttt{\seqsplit{caso6\_fig2\_bind\_config.png}} & Figura de escenario & 57 979 & {\scriptsize\ttfamily\seqsplit{7f137c72948f8e8d703940f2dc70997050f646244775b3d09846d34301f9adde}} \\
+\texttt{\seqsplit{caso7\_fig1\_icmp\_analisis.png}} & Figura de escenario & 112 705 & {\scriptsize\ttfamily\seqsplit{a1d994f43b177e57e4639554077e9204ec120425c0666fc3a2bfbd58d8d6959d}} \\
+\texttt{\seqsplit{caso7\_fig2\_pcap\_icmp\_tasa\_patron.png}} & Figura calculada & 107 071 & {\scriptsize\ttfamily\seqsplit{e011b40b078be63c865dde5367fb0ac8c9be4d1b96bfa9f23ad844760fa7f126}} \\
+\texttt{\seqsplit{caso7\_icmp\_lab.pcap}} & PCAP sintética & 5 163 774 & {\scriptsize\ttfamily\seqsplit{318601c9070ecd4928e5424e2d721e42737c4013a95c2f0fe30621843244f93b}} \\
+\texttt{\seqsplit{caso8\_fig1\_scan\_puertos.png}} & Figura de escenario & 141 872 & {\scriptsize\ttfamily\seqsplit{e2e1b9c1a8e11e27fff52edc94d21fbe9c7bdca5e4ade284f8abe96cb268b776}} \\
+\texttt{\seqsplit{caso8\_fig2\_pcap\_barrido\_puertos.png}} & Figura calculada & 93 364 & {\scriptsize\ttfamily\seqsplit{f444895376bf9c3ebb2a63f857f4622f18495db31e2e50c74df2773ad6d32151}} \\
+\texttt{\seqsplit{caso8\_portscan\_lab.pcap}} & PCAP sintética & 9 174 924 & {\scriptsize\ttfamily\seqsplit{f0f0436c39121ac1b459674f70e2faaf5d7273366627d56911429acba7bd28b0}} \\
+\texttt{\seqsplit{caso9\_fig1\_correlacion\_alertas.png}} & Figura de escenario & 297 379 & {\scriptsize\ttfamily\seqsplit{292fc05152cba03e6b35cfd4a8422bce70db721ee4836edcf68a710f9c2904d1}} \\
+\texttt{\seqsplit{caso9\_fig2\_pipeline.png}} & Figura de escenario & 60 455 & {\scriptsize\ttfamily\seqsplit{0ece8e2286dcdd8d194290cca2b71654d070c692b0bb3cdafd4a1066df954517}} \\
+\texttt{\seqsplit{parte2\_sistema\_funcionando.png}} & Figura de escenario & 167 659 & {\scriptsize\ttfamily\seqsplit{8b587cfc0e2abcd9435772bd158e164ac28e991220c5f6fe3f9556d438a03d18}} \\
+\texttt{\seqsplit{sistema\_netstat.txt}} & Salida real & 12 812 & {\scriptsize\ttfamily\seqsplit{d534d1689ed80d315c102e797ef7d49d0a6b16022ea7ec2bf30762094594a586}} \\
+\texttt{\seqsplit{sistema\_netstat\_captura.png}} & Captura real & 134 685 & {\scriptsize\ttfamily\seqsplit{9a179bdd1e6f6694202a9996712e5512fd52153debea0f19767f7e436aaea477}} \\
+\end{xltabular}}
+
+Las figuras \texttt{caso1\_fig1}, \texttt{caso1\_fig2}, \texttt{caso2\_fig1}, \texttt{caso2\_fig2}, \texttt{caso5\_fig1}, \texttt{caso7\_fig1} y \texttt{caso8\_fig1} de la versión anterior se conservan en la carpeta, pero ya no se citan: mostraban valores de escenario que no coincidían con las PCAP y fueron reemplazadas por las figuras calculadas sobre las capturas.

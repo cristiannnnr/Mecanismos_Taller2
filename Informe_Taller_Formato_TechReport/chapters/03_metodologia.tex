@@ -1,0 +1,160 @@
+\chapter{Metodolog\'ia}
+\label{ch:metodo}
+\section{Topolog\'ia de referencia}
+Las direcciones corresponden a la topología sugerida por la guía. \textbf{No se desplegaron máquinas virtuales}: la red 192.168.50.0/24 existe únicamente dentro de las PCAP sintéticas y de los escenarios simulados.
+
+\begin{table}[H]
+\centering
+\small
+\caption[Topología de referencia (tabla 1)]{Topología de referencia}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Elemento} & \textbf{Dirección} & \textbf{Papel en los casos} \\
+\midrule
+Equipo analista & 192.168.50.10/\allowbreak{}24 & Origen de consultas DNS (Caso 2) y de sesiones HTTPS (Caso 5) \\
+Servidor web/\allowbreak{}pruebas & 192.168.50.20/\allowbreak{}24 & Destino del SYN flood, del ICMP y del escaneo (Casos 1, 7, 8) \\
+Servidor DNS de laboratorio & 192.168.50.53/\allowbreak{}24 & Resolver de \texttt{lab.internal} (Casos 2 y 6) \\
+Servidor de mensajería & 192.168.50.30/\allowbreak{}24 & XMPP (Caso 10) \\
+Gateway de laboratorio & 192.168.50.1/\allowbreak{}24 & Emisor de los RST (Caso 5) \\
+Host no inventariado & 192.168.50.100 & Origen del ICMP y del escaneo (Casos 7 y 8) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+El único equipo físico utilizado es el computador del analista (Windows, \texttt{netstat -ano} capturado el 2026-11-16 21:43, UTC-5), que aporta la evidencia real del Caso 3.
+
+\section{Herramientas}
+\begin{table}[H]
+\centering
+\small
+\caption[Herramientas (tabla 1)]{Herramientas}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Herramienta} & \textbf{Uso} & \textbf{Tipo de evidencia} \\
+\midrule
+Python 3 + Scapy & Generación de las cinco PCAP (\texttt{\seqsplit{generar\_evidencias.py}}) & PCAP sintética \\
+\texttt{\seqsplit{analizar\_pcaps.py}} (biblioteca estándar de Python) & Lectura de las PCAP, conteos, entropía, tablas de flujos y SHA-256 & Real \\
+Wireshark & Los filtros de visualización que se citan en cada caso reproducen los mismos conteos al abrir la PCAP & Reproducible \\
+\texttt{netstat -ano}, \texttt{netsh}, PowerShell & Inventario de puertos y estado del firewall del equipo analista & Real \\
+scikit-learn (Isolation Forest), NumPy, pandas & Caso 4 & Real sobre datos sintéticos \\
+FastAPI, SQLite, Leaflet, python-telegram-bot & Parte II & Real \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Las reglas de Suricata y Zeek son \textbf{propuestas}: se redactaron y justificaron, pero no se desplegó un sensor, tal como lo permite la guía.
+
+\section{M\'etodo y reproducibilidad}
+\begin{enumerate}
+  \item Cada PCAP se conserva sin modificar en \texttt{evidencias/} y se identifica por su SHA-256 (índice al final).
+  \item \texttt{python analizar\_pcaps.py casoN} vuelve a calcular todas las cifras de este informe a partir del archivo; las capturas de consola que aparecen en cada caso son la salida de ese comando.
+  \item Los tiempos de las PCAP son relativos al primer paquete (t = 0 s), porque el generador no les asignó fecha de calendario.
+  \item Para cada hallazgo se registran observación, hipótesis principal, alternativas benignas, validación, severidad, acción e integridad, según el formato de la sección 7 de la guía.
+\end{enumerate}
+
+\section{Formato m\'inimo de registro por hallazgo}
+\begin{table}[H]
+\centering
+\small
+\caption[Formato mínimo de registro por hallazgo (tabla 1)]{Formato mínimo de registro por hallazgo}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Campo } & \textbf{Qué registrar} \\
+\midrule
+\textbf{Identificador} & Caso, número de evidencia y nombre del \newline analista. \\
+\textbf{Fecha/\allowbreak{}hora} & Marca temporal y zona horaria; sincronización \newline conocida. \\
+\textbf{Origen/\allowbreak{}destino} & IP, MAC cuando sea pertinente, puertos y \newline protocolo; anonimizar si aplica. \\
+\textbf{Observación} & Hecho directamente observado, sin \newline conclusiones prematuras. \\
+\textbf{Hipótesis} & Explicación posible y alternativas benignas \newline consideradas. \\
+\textbf{Validación} & PCAP/\allowbreak{}log consultado, filtro, comandos de \newline inspección y resultado. \\
+\textbf{Severidad} & Impacto, probabilidad y justificación. \\
+\textbf{Acción} & Medida propuesta, responsable, riesgo de falsos \newline positivos y verificación. \\
+\textbf{Integridad} & Nombre de archivo, tamaño y hash SHA-256 de \newline la evidencia original. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Entregables}
+
+\begin{itemize}
+  \item Informe técnico por equipo, con resumen ejecutivo y alcance del laboratorio.
+  \item Diez fichas de caso con indicadores, análisis, hipótesis alternativas y medidas de defensa.
+  \item Capturas de pantalla legibles y PCAP didácticas/sintéticas cuando corresponda, con hash SHA256.
+  \item Reglas de detección propuestas y justificadas; no se exige activar bloqueos automáticos en producción.
+  \item Conclusiones sobre límites de la evidencia y oportunidades de mejora.
+\end{itemize}
+
+\subsubsection{Parte II.\_ Programación.  Utilizando técnicas, aplicaciones e Inteligencia Artificial.}
+
+\textbf{Crear una} app, programa o bot para rastrear (ubicar) números telefónicos \textbf{de servicios de mensajería instantánea como} WhatsApp \textbf{,} Telegram \textbf{, o directamente la} ubicación geográfica de un celular. \textbf{Explicación, requerimientos y aspectos técnicos para desarrollar un sistema (app, programa o bot) que:}
+
+\textbf{Explicación. Rastree la ubicación geográfica de un número telefónico} asociado a: WhatsApp (limitado, indirecto) , Telegram (con bots) , Celular directamente (usando GPS)
+
+\paragraph{Muestre en tiempo real o por intervalos la ubicación del usuario.}
+
+\paragraph{Requisitos Funcionales}
+
+\paragraph{Requisito}
+
+\paragraph{Descripción}
+
+\begin{table}[H]
+\centering
+\small
+\caption[Descripción (tabla 1)]{Descripción}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Registro por número<br>telefónico} & \textbf{El sistema debe registrar y vincular dispositivos a través<br>del número telefónico.} \\
+\midrule
+Solicitud y captura de \newline ubicación & Permitir al usuario objetivo enviar su ubicación actual o \newline automática. \\
+Actualización periódica & <sup>Capturar la ubicación del dispositivo cada intervalo</\allowbreak{}sup> \newline definido (ej. cada 10 minutos). \\
+Visualización en mapa & Mostrar ubicación en un mapa integrado (Google Maps, \newline OpenStreetMap, etc.). \\
+Alertas (opcional) & Alertar si el dispositivo entra o sale de una zona geográfica \newline (geofencing). \\
+Historial de ubicaciones & Guardar y consultar ubicaciones pasadas por fecha/\allowbreak{}hora. \\
+Acceso seguro & Autenticación del usuario \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Requisitos Técnicos}
+
+\paragraph{Aplicación móvil (necesaria para ubicación directa)}
+
+\begin{itemize}
+  \item \textbf{Android/iOS app} instalada en el dispositivo objetivo.
+  \item Solicitud de permisos de \textbf{GPS/localización} .
+  \item Envío periódico de coordenadas al servidor (backend).
+  \item Vinculación con número telefónico (SMS o código de verificación).
+\end{itemize}
+
+\subsubsection{Bot en Telegram (opcional)}
+
+\begin{itemize}
+  \item El bot puede solicitar ubicación manual mediante botones.
+  \item \textbf{No puede rastrear automáticamente} sin que el usuario lo envíe.
+  \item \textbullet{} Requiere que el usuario inicie el chat y lo autorice.
+\end{itemize}
+
+\paragraph{Backend (servidor)}
+
+\begin{itemize}
+  \item Lenguaje: Python, Node.js, PHP o similar.
+  \item API REST para enviar/recibir ubicación.
+  \item Base de datos: PostgreSQL, MongoDB o Firebase.
+  \item \textbullet{} Sistema de autenticación (por número y token).
+\end{itemize}
+
+\paragraph{Mapa y visualización}
+
+\begin{itemize}
+  \item API de Google Maps, Mapbox o Leaflet.js para mostrar las ubicaciones.
+  \item Soporte para geocodificación inversa (coordenadas $\rightarrow$ dirección).
+  \item \textbf{4.4 Características opcionales avanzadas}
+  \item 4.4.1 Geofencing personalizado (notificaciones por zona)
+  \item 4.4.2 Ahorro de batería mediante activación programada
+  \item 4.4.3 Múltiples dispositivos vinculados (familia, empleados)
+  \item 4.4.4 Interfaz web o panel administrativo
+  \item 4.4.5 Estadísticas de movimiento o recorridos
+\end{itemize}
+
+\textbf{Nota Importante:} El taller No. 2, a desarrollar (resolver), no se está pidiendo (solicitando) ingeniera(o), que vulnere, ataque o hackea ninguno de los escenarios domésticos o empresariales a los cuales Usted pueda tener acceso. El ejercicio es carácter académico. Los participantes deben actuar como hackers éticos, sin causar daño intencional a sistemas (redes de comunicaciones) y personas. No se permite el uso de técnicas que comprometan la integridad de sistemas (redes de comunicaciones y servidores TCP/IP) reales sin permiso o autorización expresa de los propietarios de los escenarios en cuestión.

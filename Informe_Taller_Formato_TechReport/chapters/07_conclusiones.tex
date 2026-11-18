@@ -1,0 +1,15 @@
+\chapter{Conclusiones y trabajo futuro}
+\label{ch:conclusiones}
+\section{Conclusiones}
+El trabajo cumple los objetivos de la gu\'ia: reconoce indicadores de compromiso en tr\'afico TCP, UDP, ICMP, DNS, HTTP/HTTPS y mensajer\'ia; correlaciona eventos con capturas y registros; eval\'ua controles preventivos y detectivos; propone un uso responsable del aprendizaje autom\'atico para priorizar alertas; y documenta resultados reproducibles mediante capturas, filtros, hashes y recomendaciones verificables. La Parte~II demuestra que el rastreo de ubicaci\'on leg\'itimo solo es posible con el consentimiento del titular, y la revisi\'on de seguridad del propio prototipo deja expl\'icitos los puntos pendientes antes de cualquier uso real.
+
+\section{Trabajo futuro}
+\textbf{Oportunidades de mejora priorizadas:} montar la topología en máquinas virtuales aisladas y capturar tráfico propio; ejecutar las reglas con \texttt{suricata -r <pcap>} y registrar qué alertas se disparan; repetir el Caso 4 con flujos extraídos de capturas reales; y auditar un servidor XMPP real con el procedimiento del Caso 10.
+
+\section{Recomendaciones}
+\begin{itemize}
+  \item Montar la topología en máquinas virtuales aisladas y capturar tráfico propio para validar las reglas de detección en un IDS real.
+  \item Verificar las mitigaciones con medición antes y después sobre un servicio autorizado.
+  \item Priorizar los controles básicos: cerrar servicios sin responsable, ligar a loopback lo que es local, cifrar y actualizar.
+  \item Corregir el hallazgo 1 de la revisión de seguridad de la Parte II (autorización por titular) antes de usar el sistema fuera del laboratorio.
+\end{itemize}

@@ -1,0 +1,12 @@
+\chapter{Discusi\'on y an\'alisis}
+\label{ch:discusion}
+La discusi\'on sintetiza lo que la evidencia de los diez casos permite afirmar y lo que deja fuera de alcance.
+
+\section{Interpretaci\'on de los resultados}
+\begin{enumerate}
+  \item \textbf{Un indicador aislado no confirma un ataque.} En el Caso 5, 234 RST parecían una manipulación y el patrón temporal apunta a un timeout del gateway. En el Caso 7, el volumen de ICMP sugería un túnel y el contenido de los paquetes lo descarta.
+  \item \textbf{Medir sobre la evidencia corrige las suposiciones.} Recalcular cada cifra a partir de las PCAP obligó a retirar tres afirmaciones que el archivo no respaldaba. El script de análisis y los hashes permiten que cualquiera repita la comprobación.
+  \item \textbf{Los controles básicos son los que más riesgo reducen.} Cerrar servicios sin responsable, ligar a loopback lo que es local, cifrar y actualizar. El inventario real del equipo analista mostró que incluso un computador de trabajo tiene 16 puertos escuchando en todas las interfaces.
+  \item \textbf{El aprendizaje automático ayuda a priorizar, no a decidir.} Isolation Forest redujo seis veces los falsos positivos frente a un umbral estadístico, pero perdió el 17 \% de los túneles DNS, y ambos resultados provienen de datos sintéticos fáciles.
+  \item \textbf{Límites de este trabajo.} No hubo red de laboratorio física ni sensores desplegados: las reglas de detección no se probaron en un IDS, las mitigaciones no se verificaron con un antes y un después, y los Casos 3 (segunda parte), 6, 9 y 10 se apoyan en telemetría simulada.
+\end{enumerate}

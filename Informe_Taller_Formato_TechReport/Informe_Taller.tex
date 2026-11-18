@@ -1,0 +1,149 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Formato tomado del Technical Report (CS_report). Contenido: Informe Taller 2.
+% A4, 11pt, oneside, clase book, estilo CS_report (NO modificar CS_report.sty).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[a4paper,11pt,oneside]{book}
+\usepackage{CS_report} % DO NOT REMOVE THIS LINE.
+\setcitestyle{numbers}
+
+%%---- Adiciones para contenido en espanol (sin modificar CS_report.sty) ----
+% Se evita babel-spanish a proposito: sus "shorthands" sobre . < > ~ "
+% alterarian las direcciones IP y el codigo de los casos. Se fijan los
+% nombres en espanol manualmente, conservando el formato de la plantilla.
+\usepackage{textcomp}
+\usepackage{seqsplit}
+\usepackage{array}
+\usepackage{float}
+\usepackage{xltabular}
+
+\renewcommand{\contentsname}{\'Indice general}
+\renewcommand{\listfigurename}{\'Indice de figuras}
+\renewcommand{\listtablename}{\'Indice de tablas}
+\renewcommand{\bibname}{Referencias}
+\renewcommand{\chaptername}{Cap\'itulo}
+\renewcommand{\appendixname}{Ap\'endice}
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Tabla}
+
+% Listings: permitir UTF-8 y acentos dentro del codigo
+\lstset{extendedchars=true,inputencoding=utf8,
+  literate=%
+    {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1%
+    {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1 {Ñ}{{\~N}}1%
+    {ü}{{\"u}}1 {¿}{{?`}}1 {¡}{{!`}}1 {«}{{\guillemotleft}}1 {»}{{\guillemotright}}1%
+    {·}{{\textperiodcentered}}1 {–}{{--}}1 {—}{{---}}1}
+
+% Etiquetas de tipo de evidencia (REAL / PCAP SINTETICA / ESCENARIO SIMULADO)
+\definecolor{tagrealc}{rgb}{0.11,0.47,0.21}
+\definecolor{tagpcapc}{rgb}{0.10,0.33,0.65}
+\definecolor{tagsimc}{rgb}{0.72,0.42,0.03}
+\newcommand{\tagbox}[2]{\textcolor{white}{\colorbox{#1}{\scriptsize\textsf{\textbf{#2}}}}}
+
+\sloppy
+\setlength{\emergencystretch}{3em}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+    \captionsetup[table]{margin=1.5cm,font=small,name={Tabla},labelsep=colon}
+
+    \frontmatter
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \begin{titlepage}
+        \begin{center}
+            \includegraphics[width=2.5cm]{figures/distrital1.png}\\[0.4cm]
+            {\LARGE Universidad Distrital Francisco Jos\'e de Caldas\\[0.3cm]
+            Facultad de Ingenier\'ia\\[0.2cm]
+            Ingenier\'ia de Sistemas}\\[0.6cm]
+
+            \linespread{1.2}\huge {
+                Mecanismos de seguridad para redes IEEE 802.3 con servidores TCP/IP
+            }
+            \linespread{1}~\\[0.5cm]
+            {\Large Gu\'ia--Taller No.~2 \textperiodcentered{} Informe t\'ecnico}\\[0.3cm]
+            {\large Diez casos de an\'alisis con evidencia reproducible y un sistema de
+            rastreo de ubicaci\'on basado en consentimiento}\\[0.6cm]
+
+            {\large
+            \begin{tabular}{rl}
+                \textbf{Docente:} & Octavio Jos\'e Salcedo Parra\\[0.16cm]
+                \textbf{Asignatura:} & Mecanismos de Seguridad\\[0.16cm]
+                \textbf{Asignaci\'on:} & 26 de octubre de 2026\\[0.16cm]
+                \textbf{Entrega:} & 14 de noviembre de 2026\\[0.16cm]
+                \textbf{Versi\'on:} & 2\\
+            \end{tabular}
+            }\\[0.6cm]
+
+            {\large \emph{Presentado por:}}\\[0.22cm]
+            {\large Jairo Arturo Barrera Mosquera \quad\textemdash\quad C\'odigo 20222020142}\\[0.16cm]
+            {\large Cristian David Romero Gil \quad\textemdash\quad C\'odigo 20222020138}\\[0.3cm]
+            {\footnotesize (laboratorio acad\'emico, aislado y autorizado)}\\[0.5cm]
+
+            {\large \today}
+        \end{center}
+    \end{titlepage}
+    \setcounter{page}{2}
+
+    % -------------------------------------------------------------------
+    % Declaracion
+    % -------------------------------------------------------------------
+    \newpage
+    \thispagestyle{empty}
+    \chapter*{\Large Declaraci\'on}
+    Jairo Arturo Barrera Mosquera (c\'odigo 20222020142) y Cristian David Romero Gil
+    (c\'odigo 20222020138), estudiantes de Ingenier\'ia de Sistemas de la Universidad Distrital
+    Francisco Jos\'e de Caldas, confirmamos que el trabajo aqu\'i presentado es propio y que las
+    figuras, tablas, ecuaciones, fragmentos de c\'odigo e ilustraciones son originales o, cuando
+    proceden de terceros, han sido expl\'icitamente reconocidos, citados y referenciados.
+
+    El laboratorio se realiz\'o conforme a las reglas de la gu\'ia: de forma acad\'emica, aislada y
+    autorizada. No se gener\'o tr\'afico de ataque contra ning\'un sistema real; las capturas son
+    sint\'eticas, los escenarios simulados est\'an se\~nalados como tales y la evidencia real proviene
+    del equipo propio. El tratamiento de datos personales en la Parte~II se limita a informaci\'on
+    entregada con consentimiento del titular.
+
+    \vspace{1cm}
+    \begin{flushright}
+    Jairo Arturo Barrera Mosquera --- C\'odigo 20222020142\\
+    Cristian David Romero Gil --- C\'odigo 20222020138\\
+    Ingenier\'ia de Sistemas, Universidad Distrital Francisco Jos\'e de Caldas\\[0.5cm]
+    \today
+    \end{flushright}
+
+    % -------------------------------------------------------------------
+    % Resumen
+    % -------------------------------------------------------------------
+    \input{chapters/00_abstract}
+
+    % -------------------------------------------------------------------
+    % Indices
+    % -------------------------------------------------------------------
+    \tableofcontents
+    \listoffigures
+    \listoftables
+    \input{glossaries}
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \mainmatter
+
+    \input{chapters/01_introduccion}
+    \input{chapters/02_marco}
+    \input{chapters/03_metodologia}
+    \input{chapters/04_parte1}
+    \input{chapters/05_parte2}
+    \input{chapters/06_discusion}
+    \input{chapters/07_conclusiones}
+
+    % -------------------------------------------------------------------
+    % Referencias
+    % -------------------------------------------------------------------
+    \input{chapters/references}
+
+    % -------------------------------------------------------------------
+    % Apendices
+    % -------------------------------------------------------------------
+    \appendix
+    \input{chapters/appendix_evidencias}
+
+\end{document}

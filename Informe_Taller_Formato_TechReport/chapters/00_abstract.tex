@@ -1,0 +1,9 @@
+\chapter*{\centering \Large Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+Este informe desarrolla la Gu\'ia--Taller No.~2 de mecanismos de seguridad para redes IEEE~802.3 con servicios TCP/IP. La Parte~I analiza diez casos cr\'iticos de seguridad (inundaci\'on TCP SYN, t\'unel DNS, exposici\'on de servicios heredados, detecci\'on de anomal\'ias con aprendizaje autom\'atico, resets TCP, reflexi\'on y amplificaci\'on UDP, ICMP at\'ipico, escaneo de puertos, correlaci\'on de alertas con SIEM e IA, y seguridad de mensajer\'ia XMPP sobre TLS). La Parte~II implementa un sistema de rastreo de ubicaci\'on basado en consentimiento. Conforme a las reglas del laboratorio, no se gener\'o tr\'afico de ataque contra ning\'un sistema: la evidencia se clasifica siempre como real (salidas de comandos y programas ejecutados), PCAP sint\'etica (capturas generadas con Scapy sobre direcciones privadas y medidas con un analizador propio) o escenario simulado (telemetr\'ia did\'actica). El m\'etodo prioriza la reproducibilidad: cada captura se conserva con su hash SHA-256 y todas las cifras del informe se recalculan con un script de an\'alisis. Los resultados muestran que un indicador aislado no confirma un ataque, que medir sobre la evidencia corrige suposiciones, que los controles b\'asicos son los que m\'as riesgo reducen y que el aprendizaje autom\'atico sirve para priorizar la revisi\'on humana, no para decidir bloqueos.
+~\\[1cm]
+\noindent
+\textbf{Palabras clave:} Seguridad de redes, IEEE 802.3, TCP/IP, Wireshark, an\'alisis de PCAP, detecci\'on de anomal\'ias, aprendizaje autom\'atico, SIEM, TLS, privacidad, consentimiento.
+\vfill
+\noindent
+\textbf{Laboratorio:} acad\'emico, aislado y autorizado. \quad \textbf{Repositorio:} \url{https://github.com/cristiannnnr/Mecanismos_Taller2}

@@ -1,0 +1,21 @@
+\chapter{Marco de referencia y trabajo relacionado}
+\label{ch:marco}
+Este cap\'itulo re\'une los conceptos y referencias normativas que sustentan el an\'alisis de los casos, sin anticipar los hallazgos.
+
+\section{Red IEEE 802.3 y pila TCP/IP}
+El laboratorio opera sobre una LAN Ethernet IEEE~802.3 que transporta IPv4/IPv6 y servicios TCP/IP. El protocolo TCP establece conexiones mediante un acuerdo de tres v\'ias y mantiene estado por cada conexi\'on, lo que lo hace sensible al agotamiento de recursos; su especificaci\'on vigente es el RFC~9293~\cite{rfc9293} y las mitigaciones cl\'asicas de inundaci\'on SYN se describen en el RFC~4987~\cite{rfc4987}. El sistema de nombres de dominio usa principalmente UDP/53 y se define en el RFC~1035~\cite{rfc1035}. El protocolo ICMP, usado para diagn\'ostico y notificaci\'on de errores, se define en el RFC~792~\cite{rfc792}.
+
+\section{Amenazas y anomal\'ias de red}
+Los casos abordan amenazas a la disponibilidad, la confidencialidad y la integridad: inundaci\'on TCP SYN, posible exfiltraci\'on por t\'unel DNS, reflexi\'on y amplificaci\'on UDP, escaneo de puertos, ICMP at\'ipico e inyecci\'on de resets TCP. Los ataques de amplificaci\'on basados en UDP y sus factores de referencia est\'an documentados por CISA en la alerta TA14-017A~\cite{cisa}. El an\'alisis distingue en todo momento entre s\'intoma, indicador, hip\'otesis y evidencia confirmada, y considera explicaciones benignas antes de concluir.
+
+\section{Controles preventivos y detectivos}
+Frente a estas amenazas se evaluan controles de firewall, segmentaci\'on, endurecimiento de servicios, limitaci\'on de tasa, cifrado TLS y detecci\'on con IDS/SIEM. El filtrado de direcciones de origen en el borde (BCP~38 / RFC~2827)~\cite{bcp38} es el control que impide la falsificaci\'on empleada en reflexi\'on y amplificaci\'on. Las reglas de detecci\'on se expresan para Suricata y Zeek, y los filtros de visualizaci\'on para Wireshark~\cite{tools}.
+
+\section{Aprendizaje autom\'atico para detecci\'on de anomal\'ias}
+La detecci\'on no supervisada de anomal\'ias se apoya en Isolation Forest~\cite{iforest}, que a\'isla observaciones poco frecuentes sin necesidad de etiquetas. El informe usa este modelo \'unicamente para priorizar la revisi\'on humana y contrasta su desempe\~no con una l\'inea base estad\'istica, atendiendo al desbalance de clases y a la deriva del modelo.
+
+\section{Seguridad de la mensajer\'ia y cifrado}
+La mensajer\'ia XMPP se define en el RFC~6120~\cite{rfc6120}. La protecci\'on de transporte exige TLS en versiones vigentes: el RFC~8996~\cite{rfc8996} declara obsoletas TLS~1.0 y 1.1 y el RFC~7465~\cite{rfc7465} proh\'ibe las suites RC4. El cifrado de extremo a extremo en XMPP se especifica en XEP-0384 (OMEMO)~\cite{omemo}.
+
+\section{Privacidad y marco legal}
+La Parte~II trata datos de ubicaci\'on, que en Colombia son datos personales protegidos por la Ley~1581 de 2012~\cite{ley1581}. Su tratamiento exige autorizaci\'on previa, expresa e informada, con finalidad definida y posibilidad de revocaci\'on, principio que gu\'ia el dise\~no basado en consentimiento del sistema.

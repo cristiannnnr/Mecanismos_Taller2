@@ -1,0 +1,70 @@
+\chapter{Introducci\'on}
+\label{ch:intro}
+\section{Resumen ejecutivo}
+Este informe desarrolla la Guía-Taller No. 2: diez casos de análisis de seguridad sobre una LAN Ethernet IEEE 802.3 con servicios TCP/IP (Parte I) y un sistema de rastreo de ubicación basado en consentimiento (Parte II).
+
+Siguiendo las reglas de la guía, \textbf{no se generó tráfico de ataque contra ningún sistema}. Los casos se trabajaron con tres tipos de evidencia, que el informe distingue en todo momento:
+
+\begin{table}[H]
+\centering
+\small
+\caption[Resumen ejecutivo (tabla 1)]{Resumen ejecutivo}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Etiqueta} & \textbf{Qué es} & \textbf{Dónde se usa} \\
+\midrule
+\tagbox{tagrealc}{REAL} & Salida de comandos y programas ejecutados de verdad: \texttt{netstat -ano} y estado del firewall del equipo analista, scripts de análisis sobre las PCAP, entrenamiento del modelo de ML, pruebas de la API de la Parte II. & Casos 1, 2, 3, 4, 5, 7, 8 y Parte II \\
+\tagbox{tagpcapc}{PCAP SINTÉTICA} & Capturas generadas con Scapy (\texttt{\seqsplit{generar\_evidencias.py}}) con direcciones privadas de la topología de la guía. Los paquetes son sintéticos; las métricas que se reportan se \textbf{midieron} sobre esos archivos. & Casos 1, 2, 5, 7 y 8 \\
+\tagbox{tagsimc}{ESCENARIO SIMULADO} & Telemetría didáctica (inventarios, logs, configuraciones) redactada para el caso, sin un servidor real detrás. Sirve para razonar indicadores y controles, no como prueba de un hecho. & Casos 3, 6, 9 y 10 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Hallazgos principales}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption[Resumen ejecutivo (tabla 2)]{Resumen ejecutivo}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{\#} & \textbf{Caso} & \textbf{Severidad} & \textbf{Hallazgo medido o planteado} & \textbf{Control prioritario} \\
+\midrule
+1 & TCP SYN Flood & Alta & 3 847 SYN en 9,9 s desde 3 752 IP distintas; 42 SYN/\allowbreak{}ACK y ningún handshake completo & SYN cookies y límite de tasa perimetral \\
+2 & DNS tunneling & Alta & 847 consultas TXT en 122 s; etiquetas de 36--38 caracteres que decodifican como Base64 & Registro de consultas y resolver único autorizado \\
+3 & Servicios expuestos & Alta & Escenario con FTP/\allowbreak{}Telnet en claro; en el equipo real, 16 puertos TCP en escucha en todas las interfaces & Deshabilitar lo innecesario; cifrar; ligar a loopback \\
+4 & Anomalías con IA/\allowbreak{}ML & Media & Isolation Forest: precisión 0,97 y recall 0,95; la línea base estadística detecta todo pero con 6 veces más falsos positivos & Usar el score solo para priorizar revisión humana \\
+5 & TCP RST inesperados & Media & 234 sesiones cortadas con RST a los 28--30 s de inactividad, emitidos por el gateway & Ajustar timeout de estado; keep-alive \\
+6 & Reflexión/\allowbreak{}amplificación UDP & Alta & Resolver abierto y \texttt{monlist} habilitado en el escenario & Restringir recursión, RRL, BCP 38 \\
+7 & ICMP atípico & Media & 3 375 Echo Request de 1 472 bytes en 7,5 min, sin respuestas; relleno incremental, no cifrado & Límite de tasa y de tamaño ICMP \\
+8 & Escaneo de puertos & Media & 65 535 puertos sondeados en 29,95 s; 7 respondieron SYN/\allowbreak{}ACK & Reducir superficie; alerta por puertos distintos \\
+9 & Correlación con SIEM/\allowbreak{}IA & Media & 2 309 alertas brutas reducidas a 23 incidentes en el escenario & Pipeline con validación humana registrada \\
+10 & XMPP y TLS & Alta & TLS 1.0, certificado vencido y consola de administración sin cifrar en el escenario & TLS 1.2+ obligatorio, certificado válido \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Límites de la evidencia.} Una PCAP sintética demuestra que el método de análisis funciona y que los indicadores se saben medir; no demuestra que un ataque haya ocurrido. Tres afirmaciones de la versión anterior de este informe se corrigieron porque las capturas no las sostenían: la entropía "de contenido cifrado" del Caso 7, los 39 puertos abiertos y la huella de sistema operativo del Caso 8, y los RST "a 0,3--0,7 ms del último dato" del Caso 5.
+
+\section{Presentaci\'on y alcance}
+La práctica estudia riesgos de disponibilidad, confidencialidad e integridad en una LAN Ethernet IEEE 802.3 que transporta IPv4/IPv6 y servicios TCP/IP. El trabajo se realiza exclusivamente en equipos propios o máquinas virtuales, con direcciones privadas, tráfico de prueba y autorización expresa. No se debe generar tráfico hacia Internet, redes institucionales en producción ni direcciones de terceros.
+
+\section{Objetivos}
+\begin{itemize}
+  \item Reconocer indicadores de compromiso y comportamientos anómalos en tráfico TCP, UDP, ICMP, DNS, HTTP/HTTPS y mensajería.
+  \item Usar Wireshark y registros del sistema para correlacionar eventos, direcciones, puertos, marcas de tiempo y estados de conexión.
+  \item Evaluar controles preventivos y detectivos: firewall, segmentación, endurecimiento de servicios, TLS, limitación de tasa e IDS/SIEM.
+  \item Proponer el uso responsable de aprendizaje automático para priorizar alertas, sin delegar bloqueos automáticos críticos a un modelo no validado.
+  \item Documentar resultados reproducibles mediante capturas, filtros, registros, hashes y recomendaciones verificables.
+\end{itemize}
+
+\section{Resultados de aprendizaje}
+\begin{itemize}
+  \item Diferencia entre síntoma, indicador, hipótesis y evidencia confirmada.
+  \item Interpreta capturas de paquetes y registros sin confundir anomalías con prueba definitiva de ataque.
+  \item Relaciona cada caso con controles preventivos, detectivos, correctivos y de recuperación.
+  \item Entrega un informe técnico con hallazgos, limitaciones y un plan de mejora priorizado.
+\end{itemize}
+
+\section{Estructura del informe}
+El informe sigue la estructura de un reporte t\'ecnico. El Cap\'itulo~\ref{ch:marco} resume los conceptos de red, amenazas y controles en los que se apoya el an\'alisis. El Cap\'itulo~\ref{ch:metodo} describe la topolog\'ia de referencia, las herramientas, el m\'etodo de reproducibilidad y el formato de registro por hallazgo. El Cap\'itulo~\ref{ch:parte1} presenta los diez casos cr\'iticos de la Parte~I con su evidencia, reglas de detecci\'on propuestas y medidas de defensa. El Cap\'itulo~\ref{ch:parte2} documenta el sistema de rastreo por consentimiento de la Parte~II. Los Cap\'itulos~\ref{ch:discusion} y~\ref{ch:conclusiones} discuten los resultados y presentan las conclusiones y el trabajo futuro. El ap\'endice re\'une el \'indice de evidencias con sus hashes de integridad.
